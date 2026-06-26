@@ -201,3 +201,13 @@ canvas { background: white; display: block; width: 100%; height: auto; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bounceIn { 0% { opacity: 0; transform: scale(0.9) rotate(1deg); } 100% { opacity: 1; transform: scale(1) rotate(1deg); } }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+
+/* On autorise le défilement et le zoom sur toute la page */
+body {
+    touch-action: auto; 
+}
+
+/* On bloque le défilement UNIQUEMENT sur la zone de dessin pour que le trait soit fluide */
+canvas {
+    touch-action: none; 
+}
