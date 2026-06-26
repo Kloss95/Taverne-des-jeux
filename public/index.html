@@ -2,83 +2,24 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcade Studio | Mes Créations</title>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>La Taverne des Jeux</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <header class="page-header">
-        <h1>Des jeux <span class="highlight">sur navigateur</span> créés avec passion.</h1>
-    </header>
-
-    <main id="catalogue" class="games-section">
-        
-        <div class="games-grid">
-            
-            <article class="game-card" style="--card-color: #fdffb6;">
-                <div class="card-badge">Multijoueur</div>
-                <div class="card-icon">🎨</div>
-                <div class="card-content">
-                    <h2>Le Faussaire</h2>
-                    <p>Bluff et dessin en équipe. Trouvez l'intrus caché parmi les artistes !</p>
-                    <button class="play-btn" data-game="http://localhost:3000">Jouer</button>
-                </div>
-            </article>
-
-            <article class="game-card" style="--card-color: #caffbf;">
-                <div class="card-badge">RPG / Stratégie</div>
-                <div class="card-icon">🧪</div>
-                <div class="card-content">
-                    <h2>Alchimie Métabolique</h2>
-                    <p>Gérez l'énergie de votre héros en équilibrant ses ressources vitales en plein combat.</p>
-                    <button class="play-btn" data-game="#">Jouer</button>
-                </div>
-            </article>
-
-            <article class="game-card" style="--card-color: #ff90e8;">
-                <div class="card-badge">Réflexion</div>
-                <div class="card-icon">🧠</div>
-                <div class="card-content">
-                    <h2>Memory Pixel</h2>
-                    <p>Entraînez votre cerveau avec ce grand classique de la mémoire revisité en pixel art.</p>
-                    <button class="play-btn" data-game="#">Jouer</button>
-                </div>
-            </article>
-
-            <article class="game-card" style="--card-color: #9bf6ff;">
-                <div class="card-badge">Puzzle</div>
-                <div class="card-icon">🌊</div>
-                <div class="card-content">
-                    <h2>Abyss Lab</h2>
-                    <p>Explorez les fonds marins et combinez des molécules pour créer des formules uniques.</p>
-                    <button class="play-btn" data-game="#">Jouer</button>
-                </div>
-            </article>
-
-            <article class="game-card" style="--card-color: #ffd6a5;">
-                <div class="card-badge">Arcade</div>
-                <div class="card-icon">🏎️</div>
-                <div class="card-content">
-                    <h2>Canvas Racer</h2>
-                    <p>Esquivez les obstacles dans cette course effrénée générée de manière procédurale.</p>
-                    <button class="play-btn" data-game="#">Jouer</button>
-                </div>
-            </article>
-
+    <h1>Bienvenue sur la Taverne des Jeux</h1>
+    <p>Choisis un jeu pour commencer la soirée :</p>
+    
+    <div class="catalogue">
+        <div class="game-card" onclick="openGame('/jeux/faussaire/index.html')">
+            <h2>Le Faussaire 🎨</h2>
+            <p>Jeu de dessin et de bluff (3 à 8 joueurs)</p>
         </div>
-    </main>
+    </div>
 
-    <div id="game-modal" class="modal hidden">
-        <div class="modal-box">
-            <header class="modal-header">
-                <h2 id="modal-title">Jeu en cours</h2>
-                <button id="close-modal" class="close-btn">FERMER ✖</button>
-            </header>
-            <div class="iframe-container">
-                <iframe id="game-iframe" src="about:blank"></iframe>
-            </div>
+    <div id="game-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeGame()">&times;</span>
+            <iframe id="game-frame" src="" frameborder="0"></iframe>
         </div>
     </div>
 
