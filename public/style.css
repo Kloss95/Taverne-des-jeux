@@ -1,26 +1,161 @@
-/* Style global du Hub */
-body { 
-    font-family: sans-serif; background: #6c5ce7; color: white; text-align: center; padding: 50px; 
-}
-.game-card { 
-    display: inline-block; background: white; color: black; padding: 20px; border-radius: 10px; 
-    cursor: pointer; margin: 10px; border: 4px solid #111; box-shadow: 4px 4px 0 #111; transition: 0.2s;
-}
-.game-card:hover { 
-    transform: translate(-4px, -4px); box-shadow: 8px 8px 0 #111; 
+:root {
+    --bg-color: #f4f4f0;
+    --text-color: #111;
+    --border-color: #111;
+    --shadow-color: #111;
+    --border-width: 4px;
 }
 
-/* --- LE STYLE DE LA POPUP (MODALE) --- */
+body {
+    margin: 0; padding: 0;
+    font-family: 'Fredoka', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    background-image: radial-gradient(#d3d3d3 2px, transparent 2px);
+    background-size: 30px 30px;
+}
+
+/* === EN-TÊTE COMPACT === */
+.page-header {
+    text-align: center;
+    /* On réduit l'espace au-dessus (40px) et en dessous (20px) */
+    padding: 40px 20px 20px; 
+}
+
+.page-header h1 {
+    font-size: 3.5rem; 
+    line-height: 1.1; 
+    margin: 0 auto; 
+    font-weight: 700;
+    max-width: 900px; /* Évite que le titre ne s'étire trop sur grand écran */
+}
+
+.highlight {
+    background-color: #caffbf;
+    padding: 0 15px; border-radius: 10px;
+    display: inline-block;
+    border: 3px solid var(--border-color);
+    box-shadow: 5px 5px 0px var(--shadow-color);
+    transform: rotate(-2deg);
+}
+
+/* === LE CATALOGUE DE JEUX === */
+.games-section {
+    /* L'espace au-dessus de la grille est réduit (20px) pour remonter les cartes */
+    padding: 20px 5vw 100px;
+}
+
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 30px; 
+    max-width: 1200px; 
+    margin: 0 auto;
+}
+
+/* LES CARTES */
+.game-card {
+    background-color: var(--card-color, #fff);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 16px; padding: 20px;
+    box-shadow: 8px 8px 0px var(--shadow-color);
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    position: relative; 
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.game-card:hover {
+    transform: translate(-4px, -4px);
+    box-shadow: 12px 12px 0px var(--shadow-color);
+}
+
+/* Le petit tag en haut de la carte */
+.card-badge {
+    position: absolute; top: -15px;
+    background: #fff; border: 2px solid var(--border-color);
+    border-radius: 8px; padding: 5px 12px;
+    font-size: 0.85rem; font-weight: 600;
+    box-shadow: 3px 3px 0px var(--shadow-color);
+}
+
+.card-icon {
+    font-size: 3rem; margin: 15px 0 10px;
+    background: #fff; width: 75px; height: 75px; line-height: 75px;
+    border: 3px solid var(--border-color); border-radius: 50%;
+    box-shadow: 4px 4px 0px var(--shadow-color);
+}
+
+.card-content {
+    display: flex; flex-direction: column; flex-grow: 1; width: 100%;
+}
+.card-content h2 { font-size: 1.5rem; margin: 10px 0 5px; }
+.card-content p { font-size: 1rem; margin-bottom: 20px; flex-grow: 1; color: #222; }
+
+/* LE BOUTON JOUER */
+.play-btn {
+    background-color: #fff; color: var(--text-color);
+    font-family: inherit; font-size: 1.1rem; font-weight: 700;
+    border: 3px solid var(--border-color); border-radius: 8px;
+    padding: 10px 20px; cursor: pointer;
+    box-shadow: 4px 4px 0px var(--shadow-color);
+    transition: all 0.1s; width: 100%;
+}
+.play-btn:active {
+    transform: translate(4px, 4px); box-shadow: 0px 0px 0px var(--shadow-color);
+}
+
+/* === LA MODALE (Élargie) === */
 .modal {
-    display: none; /* Cachée par défaut */
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);
+    display: flex; justify-content: center; align-items: center; z-index: 100;
+    padding: 2.5vh 2.5vw; /* Laisse un petit vide de 2.5% sur tous les bords */
+    box-sizing: border-box;
+    opacity: 1; transition: opacity 0.2s ease;
+}
+.modal.hidden { opacity: 0; pointer-events: none; }
+
+.modal-box {
+    background: #fff; 
+    width: 95vw; /* Occupe 95% de la largeur de l'écran */
+    max-width: 1400px; /* Plafond max pour les très grands écrans */
+    height: 95vh; /* Occupe 95% de la hauteur */
+    border: var(--border-width) solid var(--border-color); border-radius: 16px;
+    box-shadow: 15px 15px 0px var(--shadow-color);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+
+.modal-header {
+    background-color: #fff; border-bottom: var(--border-width) solid var(--border-color);
+    display: flex; justify-content: space-between; align-items: center; padding: 15px 25px;
+}
+.modal-header h2 { margin: 0; font-size: 1.5rem; }
+.close-btn {
+    background: #ff595e; color: #fff; border: 3px solid var(--border-color);
+    border-radius: 8px; font-family: inherit; font-weight: bold; font-size: 1rem;
+    padding: 8px 15px; cursor: pointer; box-shadow: 4px 4px 0px var(--shadow-color);
+}
+.close-btn:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px var(--shadow-color); }
+.iframe-container { flex-grow: 1; background: #222; }
+#game-iframe { width: 100%; height: 100%; border: none; display: block; }
+
+/* === RESPONSIVE MODIFICATIONS === */
+@media (max-width: 768px) {
+    .page-header h1 { font-size: 2.2rem; }
+    .highlight { padding: 0 10px; }
+    .modal-box { width: 100vw; height: 100vh; border-radius: 0; border: none; box-shadow: none; }
+    .modal { padding: 0; } /* Sur mobile, la modale prend 100% de l'écran pour le confort de jeu */
+}
+/* --- LE STYLE DE LA POPUP (À rajouter à la fin de ton CSS) --- */
+.modal {
+    display: none; 
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.85); /* Fond noir semi-transparent */
+    background: rgba(0, 0, 0, 0.85);
     z-index: 1000; justify-content: center; align-items: center;
 }
 
 .modal-content {
     position: relative;
-    width: 95%; height: 95%; /* Le jeu prend 95% de l'écran */
+    width: 95%; height: 95%;
     background: white; border-radius: 12px;
 }
 
@@ -29,7 +164,7 @@ body {
     background: #ff4757; color: white; width: 40px; height: 40px;
     border-radius: 50%; font-size: 28px; font-weight: bold; line-height: 38px;
     cursor: pointer; border: 3px solid white; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    z-index: 1001;
+    z-index: 1001; text-align: center;
 }
 .close-btn:hover { background: #ff6b81; }
 

@@ -23,7 +23,7 @@
                 <div class="card-content">
                     <h2>Le Faussaire</h2>
                     <p>Bluff et dessin en équipe. Trouvez l'intrus caché parmi les artistes !</p>
-                    <button class="play-btn" data-game="http://localhost:3000">Jouer</button>
+                    <button class="play-btn" onclick="openGame('/jeux/faussaire/index.html')">Jouer</button>
                 </div>
             </article>
 
@@ -83,5 +83,12 @@
     </div>
 
     <script src="main.js"></script>
+	
+	<div id="game-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeGame()">&times;</span>
+            <iframe id="game-frame" src="" frameborder="0"></iframe>
+        </div>
+    </div>
 </body>
 </html>
