@@ -2,131 +2,86 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Le Faussaire de la Taverne</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Studio | Mes Créations</title>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <audio id="bg-music" loop>
-        <source src="chill.mp3" type="audio/mpeg">
-    </audio>
-    <button id="mute-btn" class="mute-btn">🔈</button>
+    <header class="page-header">
+        <h1>Des jeux <span class="highlight">sur navigateur</span> créés avec passion.</h1>
+    </header>
 
-    <div id="login-screen" class="game-panel fade-in">
-        <h1 class="game-logo">LE FAUSSAIRE</h1>
-        <p class="subtitle">Prêt à bluffer tes amis ?</p>
+    <main id="catalogue" class="games-section">
         
-        <div class="avatar-selector">
-            <p>Ton pion :</p>
-            <div class="avatar-grid" id="avatar-grid">
-                <div class="avatar-option selected">🦊</div>
-                <div class="avatar-option">🤖</div>
-                <div class="avatar-option">🐙</div>
-                <div class="avatar-option">👻</div>
-                <div class="avatar-option">👽</div>
-                <div class="avatar-option">🦄</div>
-                <div class="avatar-option">🦖</div>
-                <div class="avatar-option">🦉</div>
-            </div>
-        </div>
-
-        <input type="text" id="username" placeholder="TON PSEUDO" maxlength="15">
-        
-        <div class="room-controls">
-            <button id="create-room-btn" class="btn-primary">Créer un salon privé</button>
-            <div class="divider"><span>OU</span></div>
-            <div class="join-group">
-                <input type="text" id="room-code-input" placeholder="CODE" maxlength="4">
-                <button id="join-room-btn" class="btn-secondary">Rejoindre</button>
-            </div>
-        </div>
-        <p id="login-error" class="error-text"></p>
-    </div>
-
-    <div id="game-screen" style="display: none;" class="fade-in">
-        <div class="header game-panel">
-            <div class="header-info">
-                <span class="room-badge">SALON : <strong id="room-code-display">----</strong></span>
-                <h2 id="role-display">EN ATTENTE DE LANCEMENT...</h2>
-                <h3 id="turn-display"></h3>
-            </div>
-            <div id="timer-display" style="display: none;">30</div>
+        <div class="games-grid">
             
-            <div id="start-controls">
-                <button id="start-btn" class="btn-success">LANCER LA MANCHE</button>
-            </div>
-        </div>
-        
-        <div class="main-content">
-            <div class="canvas-container game-panel canvas-panel">
-                
-                <div class="tools" id="drawing-tools" style="display: none;">
-                    
-                    <div class="tool-group">
-                        <button class="color-btn selected" style="background-color: #111111;" data-color="#111111"></button>
-                        <button class="color-btn" style="background-color: #ffffff;" data-color="#ffffff"></button>
-                        <button class="color-btn" style="background-color: #FFD93D;" data-color="#FFD93D"></button>
-                        <button class="color-btn" style="background-color: #FF6B6B;" data-color="#FF6B6B"></button>
-                        <button class="color-btn" style="background-color: #4D96FF;" data-color="#4D96FF"></button>
-                        <button class="color-btn" style="background-color: #6BCB77;" data-color="#6BCB77"></button>
-                        <button class="color-btn" style="background-color: #9D4EDD;" data-color="#9D4EDD"></button>
-                        <button class="color-btn" style="background-color: #FFB347;" data-color="#FFB347"></button>
-                    </div>
-
-                    <div class="tool-group">
-                        <button class="size-btn selected" data-size="5"><span style="width: 5px; height: 5px;"></span></button>
-                        <button class="size-btn" data-size="12"><span style="width: 12px; height: 12px;"></span></button>
-                        <button class="size-btn" data-size="22"><span style="width: 22px; height: 22px;"></span></button>
-                        <button class="size-btn" data-size="35"><span style="width: 35px; height: 35px;"></span></button>
-                    </div>
-                    
-                    <button id="undo-btn" class="btn-warning">ANNULER LE TRAIT</button>
-                    <button id="next-turn-btn" class="btn-primary" style="display: none;">J'AI FINI !</button>
+            <article class="game-card" style="--card-color: #fdffb6;">
+                <div class="card-badge">Multijoueur</div>
+                <div class="card-icon">🎨</div>
+                <div class="card-content">
+                    <h2>Le Faussaire</h2>
+                    <p>Bluff et dessin en équipe. Trouvez l'intrus caché parmi les artistes !</p>
+                    <button class="play-btn" data-game="http://localhost:3000">Jouer</button>
                 </div>
-                
-                <div id="podium-area" style="display: none;">
-                    <div class="podium-content bounce-in">
-                        <h2 class="podium-title">RÉSULTATS</h2>
-                        <div id="podium-list"></div>
-                        <button id="play-again-btn" class="btn-success">REJOUER</button>
-                    </div>
+            </article>
+
+            <article class="game-card" style="--card-color: #caffbf;">
+                <div class="card-badge">RPG / Stratégie</div>
+                <div class="card-icon">🧪</div>
+                <div class="card-content">
+                    <h2>Alchimie Métabolique</h2>
+                    <p>Gérez l'énergie de votre héros en équilibrant ses ressources vitales en plein combat.</p>
+                    <button class="play-btn" data-game="#">Jouer</button>
                 </div>
-                
-                <canvas id="drawing-board" width="800" height="500"></canvas>
-            </div>
-            
-            <div class="sidebar game-panel">
-                <h3>JOUEURS</h3>
-                <ul id="player-list"></ul>
+            </article>
+
+            <article class="game-card" style="--card-color: #ff90e8;">
+                <div class="card-badge">Réflexion</div>
+                <div class="card-icon">🧠</div>
+                <div class="card-content">
+                    <h2>Memory Pixel</h2>
+                    <p>Entraînez votre cerveau avec ce grand classique de la mémoire revisité en pixel art.</p>
+                    <button class="play-btn" data-game="#">Jouer</button>
+                </div>
+            </article>
+
+            <article class="game-card" style="--card-color: #9bf6ff;">
+                <div class="card-badge">Puzzle</div>
+                <div class="card-icon">🌊</div>
+                <div class="card-content">
+                    <h2>Abyss Lab</h2>
+                    <p>Explorez les fonds marins et combinez des molécules pour créer des formules uniques.</p>
+                    <button class="play-btn" data-game="#">Jouer</button>
+                </div>
+            </article>
+
+            <article class="game-card" style="--card-color: #ffd6a5;">
+                <div class="card-badge">Arcade</div>
+                <div class="card-icon">🏎️</div>
+                <div class="card-content">
+                    <h2>Canvas Racer</h2>
+                    <p>Esquivez les obstacles dans cette course effrénée générée de manière procédurale.</p>
+                    <button class="play-btn" data-game="#">Jouer</button>
+                </div>
+            </article>
+
+        </div>
+    </main>
+
+    <div id="game-modal" class="modal hidden">
+        <div class="modal-box">
+            <header class="modal-header">
+                <h2 id="modal-title">Jeu en cours</h2>
+                <button id="close-modal" class="close-btn">FERMER ✖</button>
+            </header>
+            <div class="iframe-container">
+                <iframe id="game-iframe" src="about:blank"></iframe>
             </div>
         </div>
     </div>
 
-    <div id="theme-modal" class="modal" style="display: none;">
-        <div class="modal-content bounce-in">
-            <h2 class="modal-title">CHOISIS LE THÈME</h2>
-            <div class="theme-grid">
-                <button class="theme-card" data-theme="popculture">POP CULTURE <span class="theme-count" id="count-popculture">0</span></button>
-                <button class="theme-card" data-theme="animaux">ANIMAUX <span class="theme-count" id="count-animaux">0</span></button>
-                <button class="theme-card" data-theme="jdr">JEU DE RÔLE <span class="theme-count" id="count-jdr">0</span></button>
-                <button class="theme-card" data-theme="metiers">MÉTIERS <span class="theme-count" id="count-metiers">0</span></button>
-                <button class="theme-card" data-theme="nourriture">NOURRITURE <span class="theme-count" id="count-nourriture">0</span></button>
-                <button class="theme-card" data-theme="objets">OBJETS <span class="theme-count" id="count-objets">0</span></button>
-                <button class="theme-card hasard" data-theme="hasard">AU HASARD <span class="theme-count" id="count-hasard">0</span></button>
-            </div>
-        </div>
-    </div>
-
-    <div id="vote-modal" class="modal" style="display: none;">
-        <div class="modal-content bounce-in">
-            <h2 class="modal-title alert">QUI EST LE FAUSSAIRE ?</h2>
-            <div id="vote-modal-buttons" class="vote-grid"></div>
-        </div>
-    </div>
-
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
