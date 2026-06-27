@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* CSS spécifique pour les nouveaux champs inputs néobrutalistes */
+        /* CSS spécifique pour les champs inputs néobrutalistes */
         .neo-input {
             font-family: 'Fredoka', 'Segoe UI', sans-serif;
             padding: 15px;
@@ -70,7 +70,7 @@
         </div>
     </div>
 
-    <div class="window-box" id="waiting-screen" style="display: none; align-items: center;">
+    <div class="window-box" id="waiting-screen" style="display: none; align-items: center; flex-direction: column;">
         <h1>Salon Privé</h1>
         <p class="subtitle">Transmets ce code à ton adversaire :</p>
         <div id="room-code-display" style="font-size: 4rem; font-weight: bold; background: var(--yellow, #ffd93d); padding: 15px 40px; border: var(--border-width, 4px) solid var(--black, #1e1e1e); border-radius: 12px; margin-bottom: 30px; box-shadow: 8px 8px 0px var(--black, #1e1e1e); letter-spacing: 5px;">
@@ -79,7 +79,7 @@
         <p style="font-size: 1.2rem; font-weight: 600; color: var(--pink, #ff6b6b); animation: pulse 1.5s infinite;">En attente de connexion...</p>
     </div>
 
-    <div class="window-box" id="game-area">
+    <div class="window-box" id="game-area" style="display: none;">
         <div id="message">Prépare-toi...</div>
         
         <div class="timers">
@@ -112,7 +112,7 @@
 
         // Action : Créer un salon
         function createRoom() {
-            socket.emit("createRoom", getPseudo());
+            socket.emit("drapeaux_createRoom", getPseudo());
         }
 
         // Action : Rejoindre un salon
@@ -122,23 +122,23 @@
                 alert("Le code doit faire 4 lettres.");
                 return;
             }
-            socket.emit("joinRoom", { code: code, username: getPseudo() });
+            socket.emit("drapeaux_joinRoom", { code: code, username: getPseudo() });
         }
 
         // Serveur : Le salon est créé avec succès
-        socket.on("roomCreated", (code) => {
+        socket.on("drapeaux_roomCreated", (code) => {
             document.getElementById("start-screen").style.display = "none";
             document.getElementById("waiting-screen").style.display = "flex";
             document.getElementById("room-code-display").innerText = code;
         });
 
         // Serveur : Erreur (code invalide ou salon plein)
-        socket.on("roomError", (msg) => {
+        socket.on("drapeaux_roomError", (msg) => {
             alert(msg);
         });
 
         // Serveur : Les deux joueurs sont là, on lance
-        socket.on("gameStart", (data) => {
+        socket.on("drapeaux_gameStart", (data) => {
             myPlayerIndex = data.playerIndex;
             
             document.getElementById("start-screen").style.display = "none";
@@ -154,8 +154,7 @@
             document.getElementById("name1").innerHTML = data.p2Name + p2Tag;
         });
 
-        // (Le reste de la logique Socket.io pour la partie reste identique)
-        socket.on("newQuestion", (data) => {
+        socket.on("drapeaux_newQuestion", (data) => {
             isMyTurn = (data.currentPlayer === myPlayerIndex);
             
             document.getElementById("flag-image").src = `https://flagcdn.com/w320/${data.flagCode}.png`;
@@ -181,13 +180,13 @@
                 if (!isMyTurn) btn.disabled = true;
 
                 btn.onclick = () => {
-                    if (isMyTurn) socket.emit("submitAnswer", option.code);
+                    if (isMyTurn) socket.emit("drapeaux_submitAnswer", option.code);
                 };
                 optionsContainer.appendChild(btn);
             });
         });
 
-        socket.on("timerUpdate", (data) => {
+        socket.on("drapeaux_timerUpdate", (data) => {
             document.getElementById("time0").innerText = data.times[0].toFixed(1);
             document.getElementById("time1").innerText = data.times[1].toFixed(1);
 
@@ -200,7 +199,7 @@
             }
         });
 
-        socket.on("correctAnswer", (data) => {
+        socket.on("drapeaux_correctAnswer", (data) => {
             const buttons = document.querySelectorAll(".btn-option");
             buttons.forEach(btn => {
                 btn.disabled = true;
@@ -210,7 +209,7 @@
             });
         });
 
-        socket.on("wrongAnswer", (data) => {
+        socket.on("drapeaux_wrongAnswer", (data) => {
             const buttons = document.querySelectorAll(".btn-option");
             buttons.forEach(btn => {
                 if(btn.dataset.code === data.wrongCode) {
@@ -220,7 +219,7 @@
             });
         });
 
-        socket.on("gameOver", (data) => {
+        socket.on("drapeaux_gameOver", (data) => {
             const msgEl = document.getElementById("message");
             if (data.winner === myPlayerIndex) {
                 msgEl.innerText = "🏆 TU AS GAGNÉ !";
@@ -235,7 +234,7 @@
             isMyTurn = false;
         });
 
-        socket.on("playerDisconnected", () => {
+        socket.on("drapeaux_playerDisconnected", () => {
             alert("L'adversaire s'est déconnecté. Le salon est fermé.");
             window.location.reload();
         });
