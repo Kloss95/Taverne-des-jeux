@@ -9,6 +9,30 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     
     <style>
+        /* --- CORRECTIONS VISUELLES --- */
+        .flag-container {
+            border: none !important; /* Enlève les pointillés */
+            background-color: transparent !important; /* Enlève le fond gris */
+            height: 220px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px auto;
+            width: 100%;
+        }
+        
+        #flag-image {
+            display: none; /* Caché au menu, forcé à "block" pendant le jeu */
+            max-height: 200px !important;
+            width: auto !important;
+            border: 4px solid #1e1e1e !important;
+            border-radius: 8px !important;
+            box-shadow: 6px 6px 0px #1e1e1e !important;
+            background-color: white !important;
+            object-fit: contain;
+        }
+
+        /* --- STYLES EXISTANTS --- */
         .neo-input {
             font-family: 'Fredoka', 'Segoe UI', sans-serif;
             padding: 15px;
@@ -58,8 +82,6 @@
             box-shadow: none !important;
             transform: none !important;
         }
-        
-        /* Styles pour les NOUVEAUTÉS (Scores, Compte à rebours, Rejouer) */
         .score {
             font-size: 1.2rem;
             color: #1e1e1e;
@@ -155,7 +177,6 @@
     </div>
 
     <script>
-        // METS L'URL DE TON RENDER ICI SI TU TESTES SUR GITHUB PAGES
         const RENDER_URL = ""; 
         const socket = RENDER_URL ? io(RENDER_URL) : io();
         
@@ -163,8 +184,8 @@
         let isMyTurn = false;
         let p1GlobalName = "";
         let p2GlobalName = "";
+        let cooldown = false; 
 
-        // Activation des boutons une fois le serveur connecté
         socket.on("connect", () => {
             const btnCreate = document.getElementById("btn-create");
             btnCreate.disabled = false;
@@ -207,7 +228,6 @@
             alert(msg);
         });
 
-        // Gestion du compte à rebours avant le jeu
         socket.on("drapeaux_startCountdown", (data) => {
             p1GlobalName = data.p1Name;
             p2GlobalName = data.p2Name;
@@ -232,20 +252,20 @@
             }, 1000);
         });
 
-        // Démarrage officiel du jeu après le compte à rebours
         socket.on("drapeaux_gameStart", (data) => {
             myPlayerIndex = data.playerIndex;
             
             document.getElementById("countdown-screen").style.display = "none";
             document.getElementById("game-area").style.display = "flex";
             
-            // On cache et réinitialise le bouton Rejouer
+            // On force l'affichage de l'image ici
+            document.getElementById("flag-image").style.display = "block";
+            
             const btnReplay = document.getElementById("btn-replay");
             btnReplay.style.display = "none";
             btnReplay.innerText = "REJOUER UNE PARTIE";
             btnReplay.disabled = false;
             
-            // Remise à zéro visuelle des scores
             document.getElementById("score0").innerText = "0 pts";
             document.getElementById("score1").innerText = "0 pts";
             
@@ -258,8 +278,11 @@
 
         socket.on("drapeaux_newQuestion", (data) => {
             isMyTurn = (data.currentPlayer === myPlayerIndex);
+            cooldown = false; 
             
-            document.getElementById("flag-image").src = `https://flagcdn.com/w320/${data.flagCode}.png`;
+            const imgEl = document.getElementById("flag-image");
+            imgEl.src = `https://flagcdn.com/w320/${data.flagCode}.png`;
+            imgEl.style.setProperty("display", "block", "important"); // Sécurité absolue pour l'affichage
             
             const msgEl = document.getElementById("message");
             if (isMyTurn) {
@@ -282,15 +305,18 @@
                 if (!isMyTurn) btn.disabled = true;
 
                 btn.onclick = () => {
-                    if (isMyTurn) socket.emit("drapeaux_submitAnswer", option.code);
+                    if (isMyTurn && !cooldown) socket.emit("drapeaux_submitAnswer", option.code);
                 };
                 optionsContainer.appendChild(btn);
             });
         });
 
         socket.on("drapeaux_timerUpdate", (data) => {
-            document.getElementById("time0").innerText = data.times[0].toFixed(1);
-            document.getElementById("time1").innerText = data.times[1].toFixed(1);
+            const t0 = data.times[0] <= 0 ? 0 : data.times[0];
+            const t1 = data.times[1] <= 0 ? 0 : data.times[1];
+
+            document.getElementById("time0").innerText = t0.toFixed(1);
+            document.getElementById("time1").innerText = t1.toFixed(1);
 
             if (data.currentPlayer === 0) {
                 document.getElementById("player0").classList.add("active");
@@ -302,7 +328,6 @@
         });
 
         socket.on("drapeaux_correctAnswer", (data) => {
-            // Mise à jour visuelle des scores
             document.getElementById("score0").innerText = data.scores[0] + " pts";
             document.getElementById("score1").innerText = data.scores[1] + " pts";
 
@@ -323,6 +348,13 @@
                     btn.disabled = true;
                 }
             });
+
+            if (isMyTurn) {
+                cooldown = true;
+                setTimeout(() => {
+                    cooldown = false;
+                }, 1000);
+            }
         });
 
         socket.on("drapeaux_gameOver", (data) => {
@@ -339,11 +371,9 @@
             buttons.forEach(btn => btn.disabled = true);
             isMyTurn = false;
 
-            // Affichage du bouton Rejouer à la fin de la partie
             document.getElementById("btn-replay").style.display = "block";
         });
 
-        // Envoi de la demande pour rejouer
         window.playAgain = function() {
             document.getElementById("btn-replay").innerText = "EN ATTENTE DE L'ADVERSAIRE...";
             document.getElementById("btn-replay").disabled = true;
