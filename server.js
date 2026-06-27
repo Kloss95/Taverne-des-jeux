@@ -32,28 +32,30 @@ const decks = {
 // ==========================================
 let drapeauxRooms = {};
 
-// J'ai ajouté plus de pays ici. (Tu pourras en rajouter d'autres avec le même format)
+// Ta liste de drapeaux (Tu peux continuer de la remplir ici)
 const flagsData = [
     { name: "Afghanistan", code: "af" }, { name: "Afrique du Sud", code: "za" },
     { name: "Albanie", code: "al" }, { name: "Algérie", code: "dz" },
     { name: "Allemagne", code: "de" }, { name: "Andorre", code: "ad" },
-    { name: "Argentine", code: "ar" }, { name: "Australie", code: "au" },
-    { name: "Autriche", code: "at" }, { name: "Belgique", code: "be" },
-    { name: "Brésil", code: "br" }, { name: "Canada", code: "ca" },
-    { name: "Chili", code: "cl" }, { name: "Chine", code: "cn" },
-    { name: "Colombie", code: "co" }, { name: "Corée du Sud", code: "kr" },
-    { name: "Croatie", code: "hr" }, { name: "Danemark", code: "dk" },
-    { name: "Égypte", code: "eg" }, { name: "Espagne", code: "es" },
-    { name: "États-Unis", code: "us" }, { name: "Finlande", code: "fi" },
-    { name: "France", code: "fr" }, { name: "Grèce", code: "gr" },
-    { name: "Inde", code: "in" }, { name: "Irlande", code: "ie" },
-    { name: "Islande", code: "is" }, { name: "Italie", code: "it" },
-    { name: "Japon", code: "jp" }, { name: "Maroc", code: "ma" },
-    { name: "Mexique", code: "mx" }, { name: "Norvège", code: "no" },
-    { name: "Pays-Bas", code: "nl" }, { name: "Pérou", code: "pe" },
-    { name: "Portugal", code: "pt" }, { name: "Royaume-Uni", code: "gb" },
-    { name: "Suède", code: "se" }, { name: "Suisse", code: "ch" },
-    { name: "Tunisie", code: "tn" }, { name: "Turquie", code: "tr" }
+    { name: "Angola", code: "ao" }, { name: "Antigua-et-Barbuda", code: "ag" },
+    { name: "Argentine", code: "ar" }, { name: "Arménie", code: "am" },
+    { name: "Australie", code: "au" }, { name: "Autriche", code: "at" },
+    { name: "Belgique", code: "be" }, { name: "Brésil", code: "br" },
+    { name: "Canada", code: "ca" }, { name: "Chili", code: "cl" },
+    { name: "Chine", code: "cn" }, { name: "Colombie", code: "co" },
+    { name: "Corée du Sud", code: "kr" }, { name: "Croatie", code: "hr" },
+    { name: "Danemark", code: "dk" }, { name: "Égypte", code: "eg" },
+    { name: "Espagne", code: "es" }, { name: "États-Unis", code: "us" },
+    { name: "Finlande", code: "fi" }, { name: "France", code: "fr" },
+    { name: "Grèce", code: "gr" }, { name: "Inde", code: "in" },
+    { name: "Irlande", code: "ie" }, { name: "Islande", code: "is" },
+    { name: "Italie", code: "it" }, { name: "Japon", code: "jp" },
+    { name: "Maroc", code: "ma" }, { name: "Mexique", code: "mx" },
+    { name: "Norvège", code: "no" }, { name: "Pays-Bas", code: "nl" },
+    { name: "Pérou", code: "pe" }, { name: "Portugal", code: "pt" },
+    { name: "Royaume-Uni", code: "gb" }, { name: "Suède", code: "se" },
+    { name: "Suisse", code: "ch" }, { name: "Tunisie", code: "tn" },
+    { name: "Turquie", code: "tr" }
 ];
 
 // ==========================================
@@ -164,13 +166,13 @@ function sendNextFlagQuestion(roomId) {
     if (!room || !room.gameActive) return;
 
     if (room.availableFlags.length === 0) {
-        room.availableFlags = [...flagsData]; // Recharge si tous les drapeaux ont été vus
+        room.availableFlags = [...flagsData]; 
     }
 
     const randomIndex = Math.floor(Math.random() * room.availableFlags.length);
     room.currentCorrectFlag = room.availableFlags[randomIndex];
     
-    // ANTI-DOUBLON : on retire le pays de la liste disponible
+    // On retire le pays de la liste disponible (ANTI-DOUBLONS)
     room.availableFlags.splice(randomIndex, 1);
 
     let options = [room.currentCorrectFlag];
@@ -197,10 +199,15 @@ function startFlagTimer(roomId) {
     room.interval = setInterval(() => {
         room.times[room.currentPlayer] -= 0.1;
         
-        io.to(roomId).emit('drapeaux_timerUpdate', { times: room.times, currentPlayer: room.currentPlayer });
-
+        // CORRECTION DU BUG -0.0 : On bloque strictement à 0
         if (room.times[room.currentPlayer] <= 0) {
             room.times[room.currentPlayer] = 0;
+        }
+        
+        io.to(roomId).emit('drapeaux_timerUpdate', { times: room.times, currentPlayer: room.currentPlayer });
+
+        // Si le temps est écoulé, fin du jeu
+        if (room.times[room.currentPlayer] === 0) {
             clearInterval(room.interval);
             room.gameActive = false;
             const winnerIndex = room.currentPlayer === 0 ? 1 : 0;
@@ -351,14 +358,13 @@ io.on('connection', (socket) => {
     // ÉVÉNEMENTS : DUEL DE DRAPEAUX
     // ------------------------------------------
     
-    // Création du salon
     socket.on('drapeaux_createRoom', (username) => {
         const roomCode = generateRoomCode();
         drapeauxRooms[roomCode] = {
             id: roomCode,
             players: [{ id: socket.id, name: username || 'Joueur 1', replayReady: false }],
             times: [60.0, 60.0],
-            scores: [0, 0], // Ajout des scores
+            scores: [0, 0],
             currentPlayer: 0,
             availableFlags: [...flagsData],
             currentCorrectFlag: null,
@@ -369,7 +375,6 @@ io.on('connection', (socket) => {
         socket.emit('drapeaux_roomCreated', roomCode);
     });
 
-    // Rejoint le salon
     socket.on('drapeaux_joinRoom', (data) => {
         const { code, username } = data;
         const roomCode = code.toUpperCase();
@@ -381,13 +386,11 @@ io.on('connection', (socket) => {
         room.players.push({ id: socket.id, name: username || 'Joueur 2', replayReady: false });
         socket.join(roomCode);
 
-        // Lancement du compte à rebours de 3 secondes
         io.to(roomCode).emit('drapeaux_startCountdown', { 
             p1Name: room.players[0].name, 
             p2Name: room.players[1].name 
         });
 
-        // Vrai démarrage après 3 secondes
         setTimeout(() => {
             room.gameActive = true;
             io.to(room.players[0].id).emit('drapeaux_gameStart', { playerIndex: 0 });
@@ -397,7 +400,6 @@ io.on('connection', (socket) => {
         }, 3000);
     });
 
-    // Validation d'une réponse
     socket.on('drapeaux_submitAnswer', (flagCode) => {
         const roomEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (!roomEntry) return;
@@ -411,12 +413,9 @@ io.on('connection', (socket) => {
         if (flagCode === room.currentCorrectFlag.code) {
             clearInterval(room.interval);
             
-            // Attribution du point
             room.scores[room.currentPlayer] += 1;
-            
             room.currentPlayer = room.currentPlayer === 0 ? 1 : 0;
             
-            // Envoi de la réponse et des nouveaux scores
             io.to(roomId).emit('drapeaux_correctAnswer', { 
                 correctCode: flagCode,
                 scores: room.scores
@@ -431,7 +430,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Rejouer une partie
     socket.on('drapeaux_playAgain', () => {
         const roomEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (!roomEntry) return;
@@ -440,9 +438,7 @@ io.on('connection', (socket) => {
         const player = room.players.find(p => p.id === socket.id);
         player.replayReady = true;
 
-        // Si les deux joueurs ont cliqué sur Rejouer
         if (room.players[0].replayReady && room.players[1].replayReady) {
-            // Remise à zéro des stats
             room.times = [60.0, 60.0];
             room.scores = [0, 0];
             room.currentPlayer = 0;
@@ -468,7 +464,6 @@ io.on('connection', (socket) => {
     // DÉCONNEXION (Gère les deux jeux)
     // ------------------------------------------
     socket.on('disconnect', () => {
-        // Check si le joueur était sur le Faussaire
         const faussaireCode = sessionToRoom[socket.sessionId];
         if (faussaireCode && rooms[faussaireCode] && rooms[faussaireCode].players[socket.sessionId]) {
             let room = rooms[faussaireCode]; room.players[socket.sessionId].connected = false;
@@ -484,7 +479,6 @@ io.on('connection', (socket) => {
             }
         }
 
-        // Check si le joueur était sur les Drapeaux
         const drapeauxEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (drapeauxEntry) {
             const [roomId, room] = drapeauxEntry;
