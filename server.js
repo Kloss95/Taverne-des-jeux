@@ -5,13 +5,10 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// LA CORRECTION EST ICI : On autorise GitHub (ou n'importe quel site) à se connecter au serveur Render
+// AUTORISATION CORS POUR GITHUB
 const io = new Server(server, {
     cors: { origin: "*" }
 });
-
-app.use(express.static('public'));
-const io = new Server(server);
 
 app.use(express.static('public'));
 
@@ -59,7 +56,7 @@ function generateRoomCode() {
     do {
         code = '';
         for(let i=0; i<4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    } while (rooms[code] || drapeauxRooms[code]); // Sécurité: vérifie qu'aucun jeu n'a ce code
+    } while (rooms[code] || drapeauxRooms[code]); 
     return code;
 }
 
