@@ -53,6 +53,10 @@ https.get('https://flagcdn.com/fr/codes.json', (res) => {
 }).on('error', (e) => {
     console.error("Erreur de chargement des drapeaux :", e);
 });
+// ==========================================
+// VARIABLES - DRAW HOCKEY
+// ==========================================
+let hockeyRooms = {};
 
 // ==========================================
 // FONCTIONS GLOBALES - LE FAUSSAIRE
@@ -455,6 +459,42 @@ io.on('connection', (socket) => {
             }, 3000);
         }
     });
+	
+	// ------------------------------------------
+    // ÉVÉNEMENTS : DRAW HOCKEY
+    // ------------------------------------------
+    socket.on('hockey_createRoom', (username) => {
+        const roomCode = generateRoomCode();
+        hockeyRooms[roomCode] = {
+            id: roomCode,
+            players: [{ id: socket.id, name: username || 'Joueur 1' }],
+            lines: [],
+            // Le serveur devra idéalement calculer la physique pour éviter la triche, 
+            // mais on commence par synchroniser les traits.
+        };
+        socket.join(roomCode);
+        socket.emit('hockey_roomCreated', roomCode);
+    });
+
+    socket.on('hockey_joinRoom', (data) => {
+        const { code, username } = data;
+        const roomCode = code.toUpperCase();
+        const room = hockeyRooms[roomCode];
+
+        if (!room) return socket.emit('hockey_roomError', "Ce code n'existe pas.");
+        if (room.players.length >= 2) return socket.emit('hockey_roomError', "Le salon est plein.");
+
+        room.players.push({ id: socket.id, name: username || 'Joueur 2' });
+        socket.join(roomCode);
+
+        io.to(roomCode).emit('hockey_gameStart', { players: room.players });
+    });
+
+    socket.on('hockey_drawLine', (data) => {
+        // Renvoie la ligne dessinée par un joueur à l'autre joueur du salon
+        const { roomCode, line } = data;
+        socket.to(roomCode).emit('hockey_newLine', line);
+    });
 
     // ------------------------------------------
     // DÉCONNEXION (Gère les deux jeux)
@@ -481,6 +521,12 @@ io.on('connection', (socket) => {
             clearInterval(room.interval);
             io.to(roomId).emit('drapeaux_playerDisconnected');
             delete drapeauxRooms[roomId]; 
+        }
+		const hockeyEntry = Object.entries(hockeyRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
+        if (hockeyEntry) {
+            const [roomId, room] = hockeyEntry;
+            io.to(roomId).emit('hockey_playerDisconnected');
+            delete hockeyRooms[roomId]; 
         }
     });
 });
