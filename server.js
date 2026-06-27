@@ -4,10 +4,20 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
+
+// LA CORRECTION EST ICI : On autorise GitHub (ou n'importe quel site) à se connecter au serveur Render
+const io = new Server(server, {
+    cors: { origin: "*" }
+});
+
+app.use(express.static('public'));
 const io = new Server(server);
 
 app.use(express.static('public'));
 
+// ==========================================
+// VARIABLES - LE FAUSSAIRE
+// ==========================================
 let rooms = {};
 let sessionToRoom = {};
 
@@ -20,13 +30,36 @@ const decks = {
     'objets': ['Un téléphone', 'Une chaise', 'Une voiture', 'Une brosse à dents', 'Un ordinateur', 'Une télévision']
 };
 
+// ==========================================
+// VARIABLES - DUEL DE DRAPEAUX
+// ==========================================
+let drapeauxRooms = {};
+const flagsData = [
+    { name: "Afghanistan", code: "af" }, { name: "Afrique du Sud", code: "za" },
+    { name: "Albanie", code: "al" }, { name: "Algérie", code: "dz" },
+    { name: "Allemagne", code: "de" }, { name: "Argentine", code: "ar" },
+    { name: "Australie", code: "au" }, { name: "Autriche", code: "at" },
+    { name: "Belgique", code: "be" }, { name: "Brésil", code: "br" },
+    { name: "Canada", code: "ca" }, { name: "Chili", code: "cl" },
+    { name: "Chine", code: "cn" }, { name: "Colombie", code: "co" },
+    { name: "Corée du Sud", code: "kr" }, { name: "Danemark", code: "dk" },
+    { name: "Égypte", code: "eg" }, { name: "Espagne", code: "es" },
+    { name: "États-Unis", code: "us" }, { name: "Finlande", code: "fi" },
+    { name: "France", code: "fr" }, { name: "Grèce", code: "gr" },
+    { name: "Inde", code: "in" }, { name: "Italie", code: "it" },
+    { name: "Japon", code: "jp" }, { name: "Maroc", code: "ma" }
+];
+
+// ==========================================
+// FONCTIONS GLOBALES - LE FAUSSAIRE
+// ==========================================
 function generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let code;
     do {
         code = '';
         for(let i=0; i<4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    } while (rooms[code]);
+    } while (rooms[code] || drapeauxRooms[code]); // Sécurité: vérifie qu'aucun jeu n'a ce code
     return code;
 }
 
@@ -117,8 +150,66 @@ function startGame(roomCode) {
     broadcastState(roomCode); startTurnTimer(roomCode);
 }
 
+// ==========================================
+// FONCTIONS GLOBALES - DUEL DE DRAPEAUX
+// ==========================================
+function sendNextFlagQuestion(roomId) {
+    const room = drapeauxRooms[roomId];
+    if (!room || !room.gameActive) return;
+
+    if (room.availableFlags.length === 0) {
+        room.availableFlags = [...flagsData]; 
+    }
+
+    const randomIndex = Math.floor(Math.random() * room.availableFlags.length);
+    room.currentCorrectFlag = room.availableFlags[randomIndex];
+    room.availableFlags.splice(randomIndex, 1);
+
+    let options = [room.currentCorrectFlag];
+    while (options.length < 4) {
+        const randomWrong = flagsData[Math.floor(Math.random() * flagsData.length)];
+        if (!options.some(item => item.code === randomWrong.code)) {
+            options.push(randomWrong);
+        }
+    }
+    options.sort(() => Math.random() - 0.5); 
+
+    io.to(roomId).emit('drapeaux_newQuestion', {
+        flagCode: room.currentCorrectFlag.code,
+        options: options,
+        currentPlayer: room.currentPlayer
+    });
+}
+
+function startFlagTimer(roomId) {
+    const room = drapeauxRooms[roomId];
+    if (!room || !room.gameActive) return;
+
+    clearInterval(room.interval);
+    room.interval = setInterval(() => {
+        room.times[room.currentPlayer] -= 0.1;
+        
+        io.to(roomId).emit('drapeaux_timerUpdate', { times: room.times, currentPlayer: room.currentPlayer });
+
+        if (room.times[room.currentPlayer] <= 0) {
+            room.times[room.currentPlayer] = 0;
+            clearInterval(room.interval);
+            room.gameActive = false;
+            const winnerIndex = room.currentPlayer === 0 ? 1 : 0;
+            io.to(roomId).emit('drapeaux_gameOver', { winner: winnerIndex });
+        }
+    }, 100);
+}
+
+
+// ==========================================
+// CONNEXIONS SOCKET.IO (LES DEUX JEUX)
+// ==========================================
 io.on('connection', (socket) => {
     
+    // ------------------------------------------
+    // ÉVÉNEMENTS : LE FAUSSAIRE
+    // ------------------------------------------
     socket.on('join_room', (data) => {
         const { username, avatar, sessionId, roomCode } = data;
         if (!rooms[roomCode]) return socket.emit('room_error', "Ce salon n'existe pas !");
@@ -172,7 +263,6 @@ io.on('connection', (socket) => {
             if (room.players[sid].connected) { room.players[sid].spectator = false; }
         }
 
-        // CORRECTION : On force la mise à jour visuelle des joueurs pour retirer le tag "(EN ATTENTE)"
         io.to(roomCode).emit('update_players', Object.values(room.players));
 
         const activePlayers = Object.values(room.players).filter(p => p.connected);
@@ -248,23 +338,111 @@ io.on('connection', (socket) => {
 
     socket.on('draw', (payload) => { socket.to(payload.roomCode).emit('draw', payload.data); });
 
+
+    // ------------------------------------------
+    // ÉVÉNEMENTS : DUEL DE DRAPEAUX
+    // ------------------------------------------
+    socket.on('drapeaux_createRoom', (username) => {
+        const roomCode = generateRoomCode();
+        drapeauxRooms[roomCode] = {
+            id: roomCode,
+            players: [{ id: socket.id, name: username || 'Joueur 1' }],
+            times: [60.0, 60.0],
+            currentPlayer: 0,
+            availableFlags: [...flagsData],
+            currentCorrectFlag: null,
+            gameActive: false,
+            interval: null
+        };
+        socket.join(roomCode);
+        socket.emit('drapeaux_roomCreated', roomCode);
+    });
+
+    socket.on('drapeaux_joinRoom', (data) => {
+        const { code, username } = data;
+        const roomCode = code.toUpperCase();
+        const room = drapeauxRooms[roomCode];
+
+        if (!room) {
+            return socket.emit('drapeaux_roomError', "Ce code n'existe pas.");
+        }
+        if (room.players.length >= 2) {
+            return socket.emit('drapeaux_roomError', "Le salon est déjà plein.");
+        }
+
+        room.players.push({ id: socket.id, name: username || 'Joueur 2' });
+        socket.join(roomCode);
+        room.gameActive = true;
+
+        io.to(room.players[0].id).emit('drapeaux_gameStart', { 
+            playerIndex: 0, 
+            p1Name: room.players[0].name, 
+            p2Name: room.players[1].name 
+        });
+        io.to(room.players[1].id).emit('drapeaux_gameStart', { 
+            playerIndex: 1, 
+            p1Name: room.players[0].name, 
+            p2Name: room.players[1].name 
+        });
+
+        sendNextFlagQuestion(roomCode);
+        startFlagTimer(roomCode);
+    });
+
+    socket.on('drapeaux_submitAnswer', (flagCode) => {
+        const roomEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
+        if (!roomEntry) return;
+        
+        const [roomId, room] = roomEntry;
+        if (!room.gameActive) return;
+        
+        const playerIndex = room.players.findIndex(p => p.id === socket.id);
+        if (playerIndex !== room.currentPlayer) return; 
+
+        if (flagCode === room.currentCorrectFlag.code) {
+            clearInterval(room.interval);
+            room.currentPlayer = room.currentPlayer === 0 ? 1 : 0;
+            io.to(roomId).emit('drapeaux_correctAnswer', { correctCode: flagCode });
+            
+            setTimeout(() => {
+                sendNextFlagQuestion(roomId);
+                startFlagTimer(roomId);
+            }, 300);
+        } else {
+            socket.emit('drapeaux_wrongAnswer', { wrongCode: flagCode });
+        }
+    });
+
+    // ------------------------------------------
+    // DÉCONNEXION (Gère les deux jeux)
+    // ------------------------------------------
     socket.on('disconnect', () => {
-        const roomCode = sessionToRoom[socket.sessionId];
-        if (roomCode && rooms[roomCode] && rooms[roomCode].players[socket.sessionId]) {
-            let room = rooms[roomCode]; room.players[socket.sessionId].connected = false;
-            io.to(roomCode).emit('update_players', Object.values(room.players));
+        // 1. Check si le joueur était sur le Faussaire
+        const faussaireCode = sessionToRoom[socket.sessionId];
+        if (faussaireCode && rooms[faussaireCode] && rooms[faussaireCode].players[socket.sessionId]) {
+            let room = rooms[faussaireCode]; room.players[socket.sessionId].connected = false;
+            io.to(faussaireCode).emit('update_players', Object.values(room.players));
             
             if (room.gameState.status === 'theme_voting') {
                 const activeCount = Object.values(room.players).filter(p => p.connected && !p.spectator).length;
                 if (activeCount >= 2 && Object.keys(room.themeVotes).length >= activeCount) {
-                    clearTimeout(room.themeVotingTimer); startGame(roomCode);
+                    clearTimeout(room.themeVotingTimer); startGame(faussaireCode);
                 }
             } else if (room.gameState.status === 'playing' && room.gameState.playerOrder[room.gameState.currentTurnIndex] === socket.sessionId) {
-                passTurn(roomCode);
+                passTurn(faussaireCode);
             }
+        }
+
+        // 2. Check si le joueur était sur les Drapeaux
+        const drapeauxEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
+        if (drapeauxEntry) {
+            const [roomId, room] = drapeauxEntry;
+            clearInterval(room.interval);
+            io.to(roomId).emit('drapeaux_playerDisconnected');
+            delete drapeauxRooms[roomId]; 
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Le serveur tourne sur le port ${PORT}`));
+server.listen(PORT, () => console.log(`Le serveur Hub Rétro tourne sur le port ${PORT}`));
