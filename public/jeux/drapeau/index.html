@@ -9,10 +9,15 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     
     <style>
-        /* --- CORRECTIONS VISUELLES --- */
+        /* --- CHANGEMENT DE COULEUR DE FOND (VERT) --- */
+        body {
+            background-color: #4ade80 !important; /* Vert néobrutaliste */
+        }
+
+        /* --- CORRECTIONS VISUELLES GÉNÉRALES --- */
         .flag-container {
-            border: none !important; /* Enlève les pointillés */
-            background-color: transparent !important; /* Enlève le fond gris */
+            border: none !important; 
+            background-color: transparent !important; 
             height: 220px !important;
             display: flex;
             align-items: center;
@@ -22,7 +27,7 @@
         }
         
         #flag-image {
-            display: none; /* Caché au menu, forcé à "block" pendant le jeu */
+            display: none; 
             max-height: 200px !important;
             width: auto !important;
             border: 4px solid #1e1e1e !important;
@@ -32,7 +37,6 @@
             object-fit: contain;
         }
 
-        /* --- STYLES EXISTANTS --- */
         .neo-input {
             font-family: 'Fredoka', 'Segoe UI', sans-serif;
             padding: 15px;
@@ -82,6 +86,7 @@
             box-shadow: none !important;
             transform: none !important;
         }
+        
         .score {
             font-size: 1.2rem;
             color: #1e1e1e;
@@ -117,10 +122,49 @@
             margin-top: 20px;
             width: 100%;
         }
+
+        /* --- OPTIMISATION POUR LES TÉLÉPHONES (MOBILE) --- */
+        @media (max-width: 600px) {
+            /* On donne plus de marge en haut pour éviter le bouton X et on réduit la taille du texte */
+            #message {
+                font-size: 1.3rem !important;
+                margin-top: 10px !important;
+                margin-bottom: 25px !important; 
+                line-height: 1.4 !important;
+            }
+
+            /* On aère les boîtes des joueurs */
+            .timers {
+                gap: 15px !important;
+                margin-bottom: 20px !important;
+            }
+
+            /* On réduit un peu la taille de l'image sur les petits écrans */
+            .flag-container {
+                height: 160px !important;
+                margin-bottom: 20px !important;
+            }
+            #flag-image {
+                max-height: 140px !important;
+            }
+
+            /* On réduit l'espace intérieur des boîtes de jeu (Window Box) */
+            .window-box {
+                padding: 15px !important;
+                width: 95% !important;
+            }
+
+            /* On ajuste les boutons de réponse pour gagner de la place en hauteur */
+            .btn-option {
+                padding: 12px 10px !important;
+                font-size: 0.95rem !important;
+            }
+        }
     </style>
 </head>
 <body>
 
+    <!-- Écran d'accueil -->
     <div class="window-box" id="start-screen">
         <h1>Duel de Drapeaux</h1>
         <p class="subtitle">Prêt à bluffer tes amis ?</p>
@@ -137,6 +181,7 @@
         </div>
     </div>
 
+    <!-- Écran d'attente (Code) -->
     <div class="window-box" id="waiting-screen" style="display: none; align-items: center; flex-direction: column;">
         <h1>Salon Privé</h1>
         <p class="subtitle">Transmets ce code à ton adversaire :</p>
@@ -146,11 +191,13 @@
         <p style="font-size: 1.2rem; font-weight: 600; color: var(--pink, #ff6b6b); animation: pulse 1.5s infinite;">En attente de connexion...</p>
     </div>
 
+    <!-- Écran du Compte à rebours -->
     <div class="window-box" id="countdown-screen">
         <h1>PRÉPAREZ-VOUS</h1>
         <div id="countdown-number">3</div>
     </div>
 
+    <!-- Écran de jeu -->
     <div class="window-box" id="game-area" style="display: none;">
         <div id="message">Prépare-toi...</div>
         
@@ -258,7 +305,6 @@
             document.getElementById("countdown-screen").style.display = "none";
             document.getElementById("game-area").style.display = "flex";
             
-            // On force l'affichage de l'image ici
             document.getElementById("flag-image").style.display = "block";
             
             const btnReplay = document.getElementById("btn-replay");
@@ -282,7 +328,7 @@
             
             const imgEl = document.getElementById("flag-image");
             imgEl.src = `https://flagcdn.com/w320/${data.flagCode}.png`;
-            imgEl.style.setProperty("display", "block", "important"); // Sécurité absolue pour l'affichage
+            imgEl.style.setProperty("display", "block", "important"); 
             
             const msgEl = document.getElementById("message");
             if (isMyTurn) {
