@@ -33,30 +33,26 @@ const decks = {
 let drapeauxRooms = {};
 
 // Ta liste de drapeaux (Tu peux continuer de la remplir ici)
-const flagsData = [
-    { name: "Afghanistan", code: "af" }, { name: "Afrique du Sud", code: "za" },
-    { name: "Albanie", code: "al" }, { name: "Algérie", code: "dz" },
-    { name: "Allemagne", code: "de" }, { name: "Andorre", code: "ad" },
-    { name: "Angola", code: "ao" }, { name: "Antigua-et-Barbuda", code: "ag" },
-    { name: "Argentine", code: "ar" }, { name: "Arménie", code: "am" },
-    { name: "Australie", code: "au" }, { name: "Autriche", code: "at" },
-    { name: "Belgique", code: "be" }, { name: "Brésil", code: "br" },
-    { name: "Canada", code: "ca" }, { name: "Chili", code: "cl" },
-    { name: "Chine", code: "cn" }, { name: "Colombie", code: "co" },
-    { name: "Corée du Sud", code: "kr" }, { name: "Croatie", code: "hr" },
-    { name: "Danemark", code: "dk" }, { name: "Égypte", code: "eg" },
-    { name: "Espagne", code: "es" }, { name: "États-Unis", code: "us" },
-    { name: "Finlande", code: "fi" }, { name: "France", code: "fr" },
-    { name: "Grèce", code: "gr" }, { name: "Inde", code: "in" },
-    { name: "Irlande", code: "ie" }, { name: "Islande", code: "is" },
-    { name: "Italie", code: "it" }, { name: "Japon", code: "jp" },
-    { name: "Maroc", code: "ma" }, { name: "Mexique", code: "mx" },
-    { name: "Norvège", code: "no" }, { name: "Pays-Bas", code: "nl" },
-    { name: "Pérou", code: "pe" }, { name: "Portugal", code: "pt" },
-    { name: "Royaume-Uni", code: "gb" }, { name: "Suède", code: "se" },
-    { name: "Suisse", code: "ch" }, { name: "Tunisie", code: "tn" },
-    { name: "Turquie", code: "tr" }
-];
+const https = require('https');
+let flagsData = [];
+
+// Le serveur télécharge lui-même les drapeaux depuis FlagCDN au démarrage !
+https.get('https://flagcdn.com/fr/codes.json', (res) => {
+    let body = '';
+    res.on('data', chunk => body += chunk);
+    res.on('end', () => {
+        const data = JSON.parse(body);
+        for (let code in data) {
+            // On garde uniquement les vrais pays (on exclut les sous-régions comme 'us-ca')
+            if (!code.includes('-')) {
+                flagsData.push({ name: data[code], code: code });
+            }
+        }
+        console.log(`✅ Liste complète chargée : ${flagsData.length} drapeaux !`);
+    });
+}).on('error', (e) => {
+    console.error("Erreur de chargement des drapeaux :", e);
+});
 
 // ==========================================
 // FONCTIONS GLOBALES - LE FAUSSAIRE
