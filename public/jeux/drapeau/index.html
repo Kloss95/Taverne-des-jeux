@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duel de Drapeaux - Multijoueur</title>
     <link rel="stylesheet" href="style.css">
+    <!-- On force le chemin absolu pour Render -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* CSS spécifique pour les champs inputs néobrutalistes */
         .neo-input {
             font-family: 'Fredoka', 'Segoe UI', sans-serif;
             padding: 15px;
             font-size: 1.2rem;
             font-weight: 700;
-            border: var(--border-width, 4px) solid var(--black, #1e1e1e);
+            border: 4px solid #1e1e1e;
             border-radius: 8px;
-            box-shadow: 4px 4px 0px var(--black, #1e1e1e);
+            box-shadow: 4px 4px 0px #1e1e1e;
             width: 100%;
             max-width: 300px;
             text-align: center;
@@ -48,37 +48,49 @@
             margin: 20px 0;
             font-weight: 700;
             font-size: 1.2rem;
-            color: var(--black, #1e1e1e);
+            color: #1e1e1e;
+        }
+        /* Boutons désactivés par défaut */
+        button:disabled {
+            background-color: #cbd5e1 !important;
+            color: #64748b !important;
+            cursor: not-allowed;
+            box-shadow: none !important;
+            transform: none !important;
         }
     </style>
 </head>
 <body>
 
+    <!-- Écran d'accueil -->
     <div class="window-box" id="start-screen">
         <h1>Duel de Drapeaux</h1>
         <p class="subtitle">Prêt à bluffer tes amis ?</p>
         
         <input type="text" id="pseudoInput" class="neo-input" placeholder="TON PSEUDO" maxlength="15" autocomplete="off">
         
-        <button class="btn-start" style="margin-top:0;" onclick="createRoom()">CRÉER UN SALON PRIVÉ</button>
+        <!-- Les boutons sont désactivés par défaut -->
+        <button id="btn-create" class="btn-start" style="margin-top:0;" disabled onclick="createRoom()">CONNEXION SERVEUR...</button>
         
         <div class="or-divider">OU</div>
         
         <div class="join-container">
             <input type="text" id="codeInput" class="neo-input" placeholder="CODE" maxlength="4" autocomplete="off">
-            <button class="btn-start" onclick="joinRoom()" style="background-color: var(--blue, #3b82f6); color: white;">REJOINDRE</button>
+            <button id="btn-join" class="btn-start" disabled onclick="joinRoom()">...</button>
         </div>
     </div>
 
+    <!-- Écran d'attente -->
     <div class="window-box" id="waiting-screen" style="display: none; align-items: center; flex-direction: column;">
         <h1>Salon Privé</h1>
         <p class="subtitle">Transmets ce code à ton adversaire :</p>
-        <div id="room-code-display" style="font-size: 4rem; font-weight: bold; background: var(--yellow, #ffd93d); padding: 15px 40px; border: var(--border-width, 4px) solid var(--black, #1e1e1e); border-radius: 12px; margin-bottom: 30px; box-shadow: 8px 8px 0px var(--black, #1e1e1e); letter-spacing: 5px;">
+        <div id="room-code-display" style="font-size: 4rem; font-weight: bold; background: #ffd93d; padding: 15px 40px; border: 4px solid #1e1e1e; border-radius: 12px; margin-bottom: 30px; box-shadow: 8px 8px 0px #1e1e1e; letter-spacing: 5px;">
             XXXX
         </div>
-        <p style="font-size: 1.2rem; font-weight: 600; color: var(--pink, #ff6b6b); animation: pulse 1.5s infinite;">En attente de connexion...</p>
+        <p style="font-size: 1.2rem; font-weight: 600; color: #ff6b6b; animation: pulse 1.5s infinite;">En attente de connexion...</p>
     </div>
 
+    <!-- Écran de jeu -->
     <div class="window-box" id="game-area" style="display: none;">
         <div id="message">Prépare-toi...</div>
         
@@ -101,43 +113,60 @@
     </div>
 
     <script>
-        const socket = io();
+        // Connexion sécurisée pour Render
+        const socket = io('/', { path: '/socket.io' });
+        
         let myPlayerIndex = null;
         let isMyTurn = false;
+
+        // DÉTECTION DE LA CONNEXION (Allume les boutons)
+        socket.on("connect", () => {
+            console.log("Connecté à Render ! ID:", socket.id);
+            
+            const btnCreate = document.getElementById("btn-create");
+            btnCreate.disabled = false;
+            btnCreate.innerText = "CRÉER UN SALON PRIVÉ";
+            btnCreate.style.backgroundColor = "#ffd93d"; // Jaune
+
+            const btnJoin = document.getElementById("btn-join");
+            btnJoin.disabled = false;
+            btnJoin.innerText = "REJOINDRE";
+            btnJoin.style.backgroundColor = "#3b82f6"; // Bleu
+            btnJoin.style.color = "white";
+        });
+
+        socket.on("connect_error", (err) => {
+            console.error("Erreur de connexion:", err);
+            document.getElementById("btn-create").innerText = "ERREUR RÉSEAU";
+        });
 
         function getPseudo() {
             const pseudo = document.getElementById("pseudoInput").value.trim();
             return pseudo || "Anonyme";
         }
 
-        // Action : Créer un salon
         function createRoom() {
+            console.log("Création demandée...");
             socket.emit("drapeaux_createRoom", getPseudo());
         }
 
-        // Action : Rejoindre un salon
         function joinRoom() {
             const code = document.getElementById("codeInput").value.trim();
-            if (code.length !== 4) {
-                alert("Le code doit faire 4 lettres.");
-                return;
-            }
+            if (code.length !== 4) return alert("Le code doit faire 4 lettres.");
             socket.emit("drapeaux_joinRoom", { code: code, username: getPseudo() });
         }
 
-        // Serveur : Le salon est créé avec succès
         socket.on("drapeaux_roomCreated", (code) => {
+            console.log("Salon créé :", code);
             document.getElementById("start-screen").style.display = "none";
             document.getElementById("waiting-screen").style.display = "flex";
             document.getElementById("room-code-display").innerText = code;
         });
 
-        // Serveur : Erreur (code invalide ou salon plein)
         socket.on("drapeaux_roomError", (msg) => {
             alert(msg);
         });
 
-        // Serveur : Les deux joueurs sont là, on lance
         socket.on("drapeaux_gameStart", (data) => {
             myPlayerIndex = data.playerIndex;
             
@@ -146,9 +175,8 @@
             document.getElementById("game-area").style.display = "flex";
             document.getElementById("flag-image").style.display = "block";
             
-            // Intégration des pseudos + un petit indicateur "(TOI)"
-            const p1Tag = myPlayerIndex === 0 ? " <span style='color:var(--yellow); font-size:1rem;'>(TOI)</span>" : "";
-            const p2Tag = myPlayerIndex === 1 ? " <span style='color:var(--yellow); font-size:1rem;'>(TOI)</span>" : "";
+            const p1Tag = myPlayerIndex === 0 ? " <span style='color:#ffd93d; font-size:1rem;'>(TOI)</span>" : "";
+            const p2Tag = myPlayerIndex === 1 ? " <span style='color:#ffd93d; font-size:1rem;'>(TOI)</span>" : "";
             
             document.getElementById("name0").innerHTML = data.p1Name + p1Tag;
             document.getElementById("name1").innerHTML = data.p2Name + p2Tag;
@@ -162,10 +190,10 @@
             const msgEl = document.getElementById("message");
             if (isMyTurn) {
                 msgEl.innerText = "C'EST TON TOUR !";
-                msgEl.style.color = "var(--black, #1e1e1e)";
+                msgEl.style.color = "#1e1e1e";
             } else {
                 msgEl.innerText = "AU TOUR DE L'ADVERSAIRE...";
-                msgEl.style.color = "var(--red, #ef4444)";
+                msgEl.style.color = "#ef4444";
             }
 
             const optionsContainer = document.getElementById("options");
@@ -223,10 +251,10 @@
             const msgEl = document.getElementById("message");
             if (data.winner === myPlayerIndex) {
                 msgEl.innerText = "🏆 TU AS GAGNÉ !";
-                msgEl.style.color = "var(--green, #4ade80)";
+                msgEl.style.color = "#4ade80";
             } else {
                 msgEl.innerText = "💀 TEMPS ÉCOULÉ, TU AS PERDU !";
-                msgEl.style.color = "var(--red, #ef4444)";
+                msgEl.style.color = "#ef4444";
             }
             
             const buttons = document.querySelectorAll(".btn-option");
