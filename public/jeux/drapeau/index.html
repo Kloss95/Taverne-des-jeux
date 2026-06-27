@@ -5,17 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duel de Drapeaux - Multijoueur</title>
     <link rel="stylesheet" href="style.css">
-    <!-- On force le chemin absolu pour Render -->
-    <script src="/socket.io/socket.io.js"></script>
+    
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    
     <style>
         .neo-input {
             font-family: 'Fredoka', 'Segoe UI', sans-serif;
             padding: 15px;
             font-size: 1.2rem;
             font-weight: 700;
-            border: 4px solid #1e1e1e;
+            border: var(--border-width, 4px) solid var(--black, #1e1e1e);
             border-radius: 8px;
-            box-shadow: 4px 4px 0px #1e1e1e;
+            box-shadow: 4px 4px 0px var(--black, #1e1e1e);
             width: 100%;
             max-width: 300px;
             text-align: center;
@@ -48,9 +49,8 @@
             margin: 20px 0;
             font-weight: 700;
             font-size: 1.2rem;
-            color: #1e1e1e;
+            color: var(--black, #1e1e1e);
         }
-        /* Boutons désactivés par défaut */
         button:disabled {
             background-color: #cbd5e1 !important;
             color: #64748b !important;
@@ -58,18 +58,53 @@
             box-shadow: none !important;
             transform: none !important;
         }
+        
+        /* Styles pour les NOUVEAUTÉS (Scores, Compte à rebours, Rejouer) */
+        .score {
+            font-size: 1.2rem;
+            color: #1e1e1e;
+            background: #f8fafc;
+            padding: 5px 10px;
+            border-radius: 8px;
+            border: 2px solid #1e1e1e;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        #countdown-screen {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        #countdown-number {
+            font-size: 6rem;
+            font-weight: 800;
+            color: var(--yellow, #ffd93d);
+            text-shadow: 4px 4px 0px #1e1e1e;
+            animation: pop 1s infinite;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(0.8); }
+        }
+        #btn-replay {
+            display: none;
+            background-color: var(--blue, #3b82f6);
+            color: white;
+            margin-top: 20px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Écran d'accueil -->
     <div class="window-box" id="start-screen">
         <h1>Duel de Drapeaux</h1>
         <p class="subtitle">Prêt à bluffer tes amis ?</p>
         
         <input type="text" id="pseudoInput" class="neo-input" placeholder="TON PSEUDO" maxlength="15" autocomplete="off">
         
-        <!-- Les boutons sont désactivés par défaut -->
         <button id="btn-create" class="btn-start" style="margin-top:0;" disabled onclick="createRoom()">CONNEXION SERVEUR...</button>
         
         <div class="or-divider">OU</div>
@@ -80,27 +115,32 @@
         </div>
     </div>
 
-    <!-- Écran d'attente -->
     <div class="window-box" id="waiting-screen" style="display: none; align-items: center; flex-direction: column;">
         <h1>Salon Privé</h1>
         <p class="subtitle">Transmets ce code à ton adversaire :</p>
-        <div id="room-code-display" style="font-size: 4rem; font-weight: bold; background: #ffd93d; padding: 15px 40px; border: 4px solid #1e1e1e; border-radius: 12px; margin-bottom: 30px; box-shadow: 8px 8px 0px #1e1e1e; letter-spacing: 5px;">
+        <div id="room-code-display" style="font-size: 4rem; font-weight: bold; background: var(--yellow, #ffd93d); padding: 15px 40px; border: var(--border-width, 4px) solid var(--black, #1e1e1e); border-radius: 12px; margin-bottom: 30px; box-shadow: 8px 8px 0px var(--black, #1e1e1e); letter-spacing: 5px;">
             XXXX
         </div>
-        <p style="font-size: 1.2rem; font-weight: 600; color: #ff6b6b; animation: pulse 1.5s infinite;">En attente de connexion...</p>
+        <p style="font-size: 1.2rem; font-weight: 600; color: var(--pink, #ff6b6b); animation: pulse 1.5s infinite;">En attente de connexion...</p>
     </div>
 
-    <!-- Écran de jeu -->
+    <div class="window-box" id="countdown-screen">
+        <h1>PRÉPAREZ-VOUS</h1>
+        <div id="countdown-number">3</div>
+    </div>
+
     <div class="window-box" id="game-area" style="display: none;">
         <div id="message">Prépare-toi...</div>
         
         <div class="timers">
             <div id="player0" class="player">
-                <span id="name0">JOUEUR 1</span>
+                <span id="name0">JOUEUR 1</span><br>
+                <span class="score" id="score0">0 pts</span>
                 <span id="time0" class="time">60.0</span>
             </div>
             <div id="player1" class="player">
-                <span id="name1">JOUEUR 2</span>
+                <span id="name1">JOUEUR 2</span><br>
+                <span class="score" id="score1">0 pts</span>
                 <span id="time1" class="time">60.0</span>
             </div>
         </div>
@@ -110,33 +150,35 @@
         </div>
         
         <div id="options" class="options-grid"></div>
+
+        <button id="btn-replay" class="btn-start" onclick="playAgain()">REJOUER UNE PARTIE</button>
     </div>
 
     <script>
-        // Connexion sécurisée pour Render
-        const socket = io('/', { path: '/socket.io' });
+        // METS L'URL DE TON RENDER ICI SI TU TESTES SUR GITHUB PAGES
+        const RENDER_URL = ""; 
+        const socket = RENDER_URL ? io(RENDER_URL) : io();
         
         let myPlayerIndex = null;
         let isMyTurn = false;
+        let p1GlobalName = "";
+        let p2GlobalName = "";
 
-        // DÉTECTION DE LA CONNEXION (Allume les boutons)
+        // Activation des boutons une fois le serveur connecté
         socket.on("connect", () => {
-            console.log("Connecté à Render ! ID:", socket.id);
-            
             const btnCreate = document.getElementById("btn-create");
             btnCreate.disabled = false;
             btnCreate.innerText = "CRÉER UN SALON PRIVÉ";
-            btnCreate.style.backgroundColor = "#ffd93d"; // Jaune
+            btnCreate.style.backgroundColor = "var(--yellow, #ffd93d)";
 
             const btnJoin = document.getElementById("btn-join");
             btnJoin.disabled = false;
             btnJoin.innerText = "REJOINDRE";
-            btnJoin.style.backgroundColor = "#3b82f6"; // Bleu
+            btnJoin.style.backgroundColor = "var(--blue, #3b82f6)";
             btnJoin.style.color = "white";
         });
 
-        socket.on("connect_error", (err) => {
-            console.error("Erreur de connexion:", err);
+        socket.on("connect_error", () => {
             document.getElementById("btn-create").innerText = "ERREUR RÉSEAU";
         });
 
@@ -145,19 +187,17 @@
             return pseudo || "Anonyme";
         }
 
-        function createRoom() {
-            console.log("Création demandée...");
+        window.createRoom = function() {
             socket.emit("drapeaux_createRoom", getPseudo());
         }
 
-        function joinRoom() {
+        window.joinRoom = function() {
             const code = document.getElementById("codeInput").value.trim();
-            if (code.length !== 4) return alert("Le code doit faire 4 lettres.");
-            socket.emit("drapeaux_joinRoom", { code: code, username: getPseudo() });
+            if (code.length !== 4) return alert("Le code doit faire exactement 4 lettres.");
+            socket.emit("drapeaux_joinRoom", { code: code.toUpperCase(), username: getPseudo() });
         }
 
         socket.on("drapeaux_roomCreated", (code) => {
-            console.log("Salon créé :", code);
             document.getElementById("start-screen").style.display = "none";
             document.getElementById("waiting-screen").style.display = "flex";
             document.getElementById("room-code-display").innerText = code;
@@ -167,19 +207,53 @@
             alert(msg);
         });
 
-        socket.on("drapeaux_gameStart", (data) => {
-            myPlayerIndex = data.playerIndex;
+        // Gestion du compte à rebours avant le jeu
+        socket.on("drapeaux_startCountdown", (data) => {
+            p1GlobalName = data.p1Name;
+            p2GlobalName = data.p2Name;
             
             document.getElementById("start-screen").style.display = "none";
             document.getElementById("waiting-screen").style.display = "none";
+            document.getElementById("game-area").style.display = "none";
+            document.getElementById("countdown-screen").style.display = "flex";
+            
+            let count = 3;
+            document.getElementById("countdown-number").innerText = count;
+            
+            const countInterval = setInterval(() => {
+                count--;
+                if(count > 0) {
+                    document.getElementById("countdown-number").innerText = count;
+                } else if(count === 0) {
+                    document.getElementById("countdown-number").innerText = "GO !";
+                } else {
+                    clearInterval(countInterval);
+                }
+            }, 1000);
+        });
+
+        // Démarrage officiel du jeu après le compte à rebours
+        socket.on("drapeaux_gameStart", (data) => {
+            myPlayerIndex = data.playerIndex;
+            
+            document.getElementById("countdown-screen").style.display = "none";
             document.getElementById("game-area").style.display = "flex";
-            document.getElementById("flag-image").style.display = "block";
             
-            const p1Tag = myPlayerIndex === 0 ? " <span style='color:#ffd93d; font-size:1rem;'>(TOI)</span>" : "";
-            const p2Tag = myPlayerIndex === 1 ? " <span style='color:#ffd93d; font-size:1rem;'>(TOI)</span>" : "";
+            // On cache et réinitialise le bouton Rejouer
+            const btnReplay = document.getElementById("btn-replay");
+            btnReplay.style.display = "none";
+            btnReplay.innerText = "REJOUER UNE PARTIE";
+            btnReplay.disabled = false;
             
-            document.getElementById("name0").innerHTML = data.p1Name + p1Tag;
-            document.getElementById("name1").innerHTML = data.p2Name + p2Tag;
+            // Remise à zéro visuelle des scores
+            document.getElementById("score0").innerText = "0 pts";
+            document.getElementById("score1").innerText = "0 pts";
+            
+            const p1Tag = myPlayerIndex === 0 ? " <span style='color:var(--yellow); font-size:1rem;'>(TOI)</span>" : "";
+            const p2Tag = myPlayerIndex === 1 ? " <span style='color:var(--yellow); font-size:1rem;'>(TOI)</span>" : "";
+            
+            document.getElementById("name0").innerHTML = p1GlobalName + p1Tag;
+            document.getElementById("name1").innerHTML = p2GlobalName + p2Tag;
         });
 
         socket.on("drapeaux_newQuestion", (data) => {
@@ -190,10 +264,10 @@
             const msgEl = document.getElementById("message");
             if (isMyTurn) {
                 msgEl.innerText = "C'EST TON TOUR !";
-                msgEl.style.color = "#1e1e1e";
+                msgEl.style.color = "var(--black, #1e1e1e)";
             } else {
                 msgEl.innerText = "AU TOUR DE L'ADVERSAIRE...";
-                msgEl.style.color = "#ef4444";
+                msgEl.style.color = "var(--red, #ef4444)";
             }
 
             const optionsContainer = document.getElementById("options");
@@ -228,6 +302,10 @@
         });
 
         socket.on("drapeaux_correctAnswer", (data) => {
+            // Mise à jour visuelle des scores
+            document.getElementById("score0").innerText = data.scores[0] + " pts";
+            document.getElementById("score1").innerText = data.scores[1] + " pts";
+
             const buttons = document.querySelectorAll(".btn-option");
             buttons.forEach(btn => {
                 btn.disabled = true;
@@ -251,16 +329,26 @@
             const msgEl = document.getElementById("message");
             if (data.winner === myPlayerIndex) {
                 msgEl.innerText = "🏆 TU AS GAGNÉ !";
-                msgEl.style.color = "#4ade80";
+                msgEl.style.color = "var(--green, #4ade80)";
             } else {
                 msgEl.innerText = "💀 TEMPS ÉCOULÉ, TU AS PERDU !";
-                msgEl.style.color = "#ef4444";
+                msgEl.style.color = "var(--red, #ef4444)";
             }
             
             const buttons = document.querySelectorAll(".btn-option");
             buttons.forEach(btn => btn.disabled = true);
             isMyTurn = false;
+
+            // Affichage du bouton Rejouer à la fin de la partie
+            document.getElementById("btn-replay").style.display = "block";
         });
+
+        // Envoi de la demande pour rejouer
+        window.playAgain = function() {
+            document.getElementById("btn-replay").innerText = "EN ATTENTE DE L'ADVERSAIRE...";
+            document.getElementById("btn-replay").disabled = true;
+            socket.emit("drapeaux_playAgain");
+        };
 
         socket.on("drapeaux_playerDisconnected", () => {
             alert("L'adversaire s'est déconnecté. Le salon est fermé.");
