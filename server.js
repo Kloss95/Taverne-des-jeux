@@ -24,7 +24,8 @@ const decks = {
     'jdr': ['Un donjon', 'Un familier', 'Un jet de dé critique', 'Système de magie', 'Grimoire magique', 'Nécromancien', 'Auberge'],
     'metiers': ['Un pompier', 'Un astronaute', 'Un boulanger', 'Un médecin', 'Un policier', 'Un juge', 'Un agriculteur'],
     'nourriture': ['Une pizza', 'Un hamburger', 'Des sushis', 'Un gâteau', 'Une pomme', 'Du fromage'],
-    'objets': ['Un téléphone', 'Une chaise', 'Une voiture', 'Une brosse à dents', 'Un ordinateur', 'Une télévision']
+    'objets': ['Un téléphone', 'Une chaise', 'Une voiture', 'Une brosse à dents', 'Un ordinateur', 'Une télévision'],
+	'musique' : ['Une guitaire','Michael Jackson','Une trompette']
 };
 
 // ==========================================
@@ -32,7 +33,6 @@ const decks = {
 // ==========================================
 let drapeauxRooms = {};
 
-// Ta liste de drapeaux (Tu peux continuer de la remplir ici)
 const https = require('https');
 let flagsData = [];
 
@@ -53,24 +53,28 @@ https.get('https://flagcdn.com/fr/codes.json', (res) => {
 }).on('error', (e) => {
     console.error("Erreur de chargement des drapeaux :", e);
 });
+
 // ==========================================
 // VARIABLES - DRAW HOCKEY
 // ==========================================
 let hockeyRooms = {};
 
 // ==========================================
-// FONCTIONS GLOBALES - LE FAUSSAIRE
+// FONCTIONS GLOBALES 
 // ==========================================
+
+// Génère un code unique pour n'importe quel jeu
 function generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let code;
     do {
         code = '';
         for(let i=0; i<4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-    } while (rooms[code] || drapeauxRooms[code]); 
+    } while (rooms[code] || drapeauxRooms[code] || hockeyRooms[code]); // Vérifie tous les jeux
     return code;
 }
 
+// -- Fonctions Le Faussaire --
 function createEmptyRoom(code) {
     rooms[code] = {
         players: {},
@@ -158,9 +162,7 @@ function startGame(roomCode) {
     broadcastState(roomCode); startTurnTimer(roomCode);
 }
 
-// ==========================================
-// FONCTIONS GLOBALES - DUEL DE DRAPEAUX
-// ==========================================
+// -- Fonctions Duel de Drapeaux --
 function sendNextFlagQuestion(roomId) {
     const room = drapeauxRooms[roomId];
     if (!room || !room.gameActive) return;
@@ -172,7 +174,6 @@ function sendNextFlagQuestion(roomId) {
     const randomIndex = Math.floor(Math.random() * room.availableFlags.length);
     room.currentCorrectFlag = room.availableFlags[randomIndex];
     
-    // On retire le pays de la liste disponible (ANTI-DOUBLONS)
     room.availableFlags.splice(randomIndex, 1);
 
     let options = [room.currentCorrectFlag];
@@ -199,14 +200,12 @@ function startFlagTimer(roomId) {
     room.interval = setInterval(() => {
         room.times[room.currentPlayer] -= 0.1;
         
-        // CORRECTION DU BUG -0.0 : On bloque strictement à 0
         if (room.times[room.currentPlayer] <= 0) {
             room.times[room.currentPlayer] = 0;
         }
         
         io.to(roomId).emit('drapeaux_timerUpdate', { times: room.times, currentPlayer: room.currentPlayer });
 
-        // Si le temps est écoulé, fin du jeu
         if (room.times[room.currentPlayer] === 0) {
             clearInterval(room.interval);
             room.gameActive = false;
@@ -218,7 +217,7 @@ function startFlagTimer(roomId) {
 
 
 // ==========================================
-// CONNEXIONS SOCKET.IO (LES DEUX JEUX)
+// CONNEXIONS SOCKET.IO (TOUS LES JEUX)
 // ==========================================
 io.on('connection', (socket) => {
     
@@ -357,7 +356,6 @@ io.on('connection', (socket) => {
     // ------------------------------------------
     // ÉVÉNEMENTS : DUEL DE DRAPEAUX
     // ------------------------------------------
-    
     socket.on('drapeaux_createRoom', (username) => {
         const roomCode = generateRoomCode();
         drapeauxRooms[roomCode] = {
@@ -459,12 +457,11 @@ io.on('connection', (socket) => {
             }, 3000);
         }
     });
-	
-	// ------------------------------------------
+
+
+    // ------------------------------------------
     // ÉVÉNEMENTS : DRAW HOCKEY
     // ------------------------------------------
-    let hockeyRooms = {};
-
     socket.on('hockey_createRoom', (username) => {
         const roomCode = generateRoomCode();
         hockeyRooms[roomCode] = {
@@ -487,7 +484,7 @@ io.on('connection', (socket) => {
         room.players.push({ id: socket.id, name: username || 'Joueur 2', replayReady: false });
         socket.join(roomCode);
 
-        // Les deux joueurs sont là, on lance le compte à rebours
+        // Lancement du compte à rebours
         io.to(roomCode).emit('hockey_startCountdown', {
             hostId: room.hostId,
             roomCode: roomCode
@@ -498,7 +495,7 @@ io.on('connection', (socket) => {
         }, 3000);
     });
 
-    // Relais de la physique (De l'Hôte vers le Client)
+    // Relais de la physique du palet (De l'Hôte vers le Client)
     socket.on('hockey_syncPuck', (data) => {
         socket.to(data.roomCode).emit('hockey_updatePuck', data.puck);
     });
@@ -528,7 +525,6 @@ io.on('connection', (socket) => {
         const player = room.players.find(p => p.id === socket.id);
         if (player) player.replayReady = true;
 
-        // Si les deux sont prêts, on relance !
         if (room.players.every(p => p.replayReady)) {
             room.players.forEach(p => p.replayReady = false);
             io.to(roomCode).emit('hockey_startCountdown', {
@@ -541,12 +537,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    
 
     // ------------------------------------------
-    // DÉCONNEXION (Gère les deux jeux)
+    // DÉCONNEXION (Gère les trois jeux)
     // ------------------------------------------
     socket.on('disconnect', () => {
+        
+        // Déconnexion Le Faussaire
         const faussaireCode = sessionToRoom[socket.sessionId];
         if (faussaireCode && rooms[faussaireCode] && rooms[faussaireCode].players[socket.sessionId]) {
             let room = rooms[faussaireCode]; room.players[socket.sessionId].connected = false;
@@ -562,6 +559,7 @@ io.on('connection', (socket) => {
             }
         }
 
+        // Déconnexion Duel de Drapeaux
         const drapeauxEntry = Object.entries(drapeauxRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (drapeauxEntry) {
             const [roomId, room] = drapeauxEntry;
@@ -569,16 +567,14 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('drapeaux_playerDisconnected');
             delete drapeauxRooms[roomId]; 
         }
-		// --- (N'oublie pas d'ajouter la déconnexion si ce n'est pas fait) ---
-   
-        // Nettoyage basique si un joueur quitte
+
+        // Déconnexion Draw Hockey
         const hockeyEntry = Object.entries(hockeyRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (hockeyEntry) {
             const [roomId, room] = hockeyEntry;
             io.to(roomId).emit('hockey_playerDisconnected');
             delete hockeyRooms[roomId]; 
         }
-    });
     });
 });
 
