@@ -9,11 +9,11 @@
         :root {
             --border-color: #151515;
             --bg-color: #fceea7;
-            --canvas-bg: #e2e8f0; /* Gris/bleu très doux pour reposer les yeux */
+            --canvas-bg: #e2e8f0; 
             --primary-color: #ff5e5e;
-            --secondary-color: #4ade80; /* Vert (Joueur) */
+            --secondary-color: #4ade80; 
             --warning-color: #ffb703;
-            --enemy-color: #a78bfa;   /* Violet (Adversaire) */
+            --enemy-color: #a78bfa;   
         }
 
         body { 
@@ -41,21 +41,30 @@
         .header {
             background-color: #ffffff;
             padding: 10px 20px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             text-transform: uppercase;
         }
 
         .header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 26px;
             font-weight: 700;
         }
 
-        /* Le conteneur relatif permet d'ancrer la jauge par rapport au terrain */
-        .game-wrapper {
-            position: relative;
+        /* Disposition en 3 colonnes */
+        .game-container {
             display: flex;
+            flex-direction: row;
+            align-items: center;
             justify-content: center;
+            gap: 40px;
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
 
         canvas { 
@@ -63,45 +72,73 @@
             display: block;
         }
 
-        /* Positionnement exact selon ton schéma : en bas à gauche */
-        .cooldown-container {
-            position: absolute;
-            left: -230px; /* Décalé sur la gauche */
-            bottom: 0px;  /* Aligné avec le bas du canvas */
-            width: 200px;
-            height: 40px;
+        /* Jauge Verticale à Gauche */
+        .cooldown-wrapper {
+            width: 40px;
+            height: 350px;
             background-color: #ffffff;
+            position: relative;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 4px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: 4px 4px 0px var(--border-color);
+            border-radius: 8px; /* Un peu plus rectangulaire pour la jauge */
         }
 
         #cooldown-fill {
             position: absolute;
-            top: 0;
+            bottom: 0; /* La jauge se remplit de bas en haut */
             left: 0;
-            height: 100%;
             width: 100%;
+            height: 100%;
             background-color: var(--warning-color);
-            transition: width 0.1s linear;
-            z-index: 1;
+            transition: height 0.1s linear;
         }
 
         #cooldown-fill.ready {
             background-color: var(--secondary-color);
         }
 
-        .cooldown-text {
-            position: relative;
-            z-index: 2;
+        .cooldown-status {
+            padding: 10px 15px;
+            font-size: 16px;
             font-weight: 700;
-            font-size: 14px;
             text-transform: uppercase;
+            background-color: #ffffff;
+            transition: background-color 0.2s;
         }
+
+        /* Panneau des scores à Droite */
+        .score-box {
+            background-color: #ffffff;
+            width: 130px;
+            padding: 15px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .score-title {
+            font-size: 16px;
+            font-weight: 700;
+            padding: 5px;
+            border-radius: 6px;
+            border: 3px solid var(--border-color);
+            box-shadow: 3px 3px 0px var(--border-color);
+        }
+
+        .score-enemy .score-title {
+            background-color: var(--enemy-color);
+        }
+
+        .score-player .score-title {
+            background-color: var(--secondary-color);
+        }
+
+        .score-value {
+            font-size: 64px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -110,64 +147,75 @@
         <h1>🏒 Draw Hockey</h1>
     </div>
 
-    <div class="game-wrapper">
+    <div class="game-container">
+        
+        <div class="side-panel">
+            <div class="cooldown-wrapper neo-box">
+                <div id="cooldown-fill" class="ready"></div>
+            </div>
+            <div class="cooldown-status neo-box" id="cooldown-status">PRÊT</div>
+        </div>
+
         <canvas id="gameCanvas" width="500" height="750" class="neo-box"></canvas>
         
-        <div class="cooldown-container">
-            <div id="cooldown-fill" class="ready"></div>
-            <span class="cooldown-text" id="cooldown-label">PINCEAU PRÊT</span>
+        <div class="side-panel">
+            <div class="score-box score-enemy neo-box">
+                <div class="score-title">ADVERSAIRE</div>
+                <div class="score-value" id="score-enemy">0</div>
+            </div>
+            <div class="score-box score-player neo-box">
+                <div class="score-title">TOI</div>
+                <div class="score-value" id="score-player">0</div>
+            </div>
         </div>
+
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const cooldownFill = document.getElementById('cooldown-fill');
-        const cooldownLabel = document.getElementById('cooldown-label');
+        const cooldownStatus = document.getElementById('cooldown-status');
+        
+        const scoreEnemyEl = document.getElementById('score-enemy');
+        const scorePlayerEl = document.getElementById('score-player');
 
         // Constantes
-        const COOLDOWN_TIME = 1000; // 1 seconde de recharge
-        const LIFESPAN = 1000; // Le trait disparait au bout d'1 seconde
+        const COOLDOWN_TIME = 1000; 
+        const LIFESPAN = 1000; 
         const TARGET_SPEED = 9; 
-        const GOAL_WIDTH = 180; // Cages légèrement agrandies
+        const GOAL_WIDTH = 130; // Cages réduites
 
         // Variables d'état
         let lastDrawTime = 0;
         let isDrawing = false;
         let currentPath = null;
-        let drawnPaths = []; // Stocke tous les traits valides avec leur timestamp
+        let drawnPaths = []; 
         
         let scores = { player: 0, enemy: 0 };
-        let puck = { x: 250, y: 500, vx: 7, vy: -9, radius: 14 };
+        let puck = { x: 250, y: 375, vx: 7, vy: -9, radius: 14 };
 
         const goalX1 = (canvas.width - GOAL_WIDTH) / 2;
         const goalX2 = goalX1 + GOAL_WIDTH;
 
-        // Fonction pour démarrer le trait
         function startDraw(x, y) {
             if (Date.now() - lastDrawTime < COOLDOWN_TIME) return;
             isDrawing = true;
-            // On s'assure que le point de départ est dans le canvas
             x = Math.max(0, Math.min(canvas.width, x));
             y = Math.max(0, Math.min(canvas.height, y));
             currentPath = [{ x, y }];
         }
 
-        // Fonction pour continuer le trait (avec bridage aux bords du terrain)
         function moveDraw(x, y) {
             if (!isDrawing || !currentPath) return;
-            
-            // "Clamping" : empêche le trait de sortir visuellement du canvas
             x = Math.max(0, Math.min(canvas.width, x));
             y = Math.max(0, Math.min(canvas.height, y));
-
             let lastPoint = currentPath[currentPath.length - 1];
             if (Math.hypot(x - lastPoint.x, y - lastPoint.y) > 5) {
                 currentPath.push({ x, y });
             }
         }
 
-        // Fonction pour terminer et sauvegarder le trait
         function endDraw() {
             if (!isDrawing) return;
             isDrawing = false;
@@ -178,7 +226,6 @@
             currentPath = null;
         }
 
-        // Événements Souris (Le mouseup et mousemove sont sur WINDOW pour ne pas perdre le trait !)
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             startDraw(e.clientX - rect.left, e.clientY - rect.top);
@@ -190,7 +237,6 @@
         });
         window.addEventListener('mouseup', endDraw);
 
-        // Événements Tactiles (Smartphones / Tablettes)
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
@@ -212,25 +258,29 @@
         }
 
         function resetPuck(whoScored) {
+            // Le palet revient pile au centre
             puck.x = canvas.width / 2;
-            puck.vx = (Math.random() > 0.5 ? 2 : -2);
+            puck.y = canvas.height / 2;
             
-            // Efface les traits lors d'un but
+            // Légère déviation aléatoire sur l'axe X
+            puck.vx = (Math.random() > 0.5 ? 1 : -1);
+            
             drawnPaths = []; 
 
+            // Il se dirige ENCORE PLUS lentement vers la personne qui vient de marquer
             if (whoScored === 'enemy') {
-                puck.y = canvas.height * 0.75;
-                puck.vy = 4; 
+                puck.vy = -1.5; // Va lentement vers l'ennemi (Le haut)
             } else {
-                puck.y = canvas.height * 0.25;
-                puck.vy = -4; 
+                puck.vy = 1.5; // Va lentement vers toi (Le bas)
             }
+
+            // Mise à jour de l'affichage HTML
+            scoreEnemyEl.innerText = scores.enemy;
+            scorePlayerEl.innerText = scores.player;
         }
 
         function update() {
             let now = Date.now();
-
-            // 1. Nettoyage des traits vieux de plus d'1 seconde
             drawnPaths = drawnPaths.filter(p => now - p.timestamp < LIFESPAN);
 
             puck.x += puck.vx;
@@ -258,7 +308,7 @@
                 }
             }
 
-            // Collisions avec les traits
+            // Collisions
             for (let i = drawnPaths.length - 1; i >= 0; i--) {
                 let pathInfo = drawnPaths[i];
                 let path = pathInfo.path;
@@ -292,7 +342,6 @@
                         }
                     }
                 }
-                // Si le palet touche le trait, le trait est détruit
                 if (collisionDetected) {
                     drawnPaths.splice(i, 1);
                 }
@@ -301,13 +350,19 @@
             // UI Cooldown
             let timePassed = now - lastDrawTime;
             if (timePassed < COOLDOWN_TIME) {
-                cooldownFill.style.width = (timePassed / COOLDOWN_TIME) * 100 + '%';
+                // Remplissage vertical
+                cooldownFill.style.height = (timePassed / COOLDOWN_TIME) * 100 + '%';
                 cooldownFill.classList.remove('ready');
-                cooldownLabel.innerText = "RECHARGE...";
+                
+                // Changement de style du bouton
+                cooldownStatus.innerText = "RECHARGE";
+                cooldownStatus.style.backgroundColor = "var(--warning-color)";
             } else {
-                cooldownFill.style.width = '100%';
+                cooldownFill.style.height = '100%';
                 cooldownFill.classList.add('ready');
-                cooldownLabel.innerText = "PINCEAU PRÊT";
+                
+                cooldownStatus.innerText = "PRÊT";
+                cooldownStatus.style.backgroundColor = "var(--secondary-color)";
             }
         }
 
@@ -339,50 +394,43 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // --- DESSIN DES SCORES ---
-            // On les dessine en arrière plan mais très visibles (Bordure blanche épaisse + Remplissage noir)
-            ctx.font = "bold 140px Fredoka";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.lineWidth = 10;
-            ctx.strokeStyle = "#ffffff";
-            
-            // Score Ennemi
-            ctx.strokeText(scores.enemy, canvas.width / 2, canvas.height * 0.25);
-            ctx.fillStyle = "#151515";
-            ctx.fillText(scores.enemy, canvas.width / 2, canvas.height * 0.25);
-            
-            // Score Joueur
-            ctx.strokeText(scores.player, canvas.width / 2, canvas.height * 0.75);
-            ctx.fillStyle = "#151515";
-            ctx.fillText(scores.player, canvas.width / 2, canvas.height * 0.75);
-            ctx.textBaseline = "alphabetic"; // reset
-
-            // --- LIGNE MÉDIANE ---
+            // LIGNE MÉDIANE
             ctx.setLineDash([15, 15]);
             ctx.beginPath();
             ctx.moveTo(0, canvas.height / 2);
             ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.strokeStyle = "rgba(21, 21, 21, 0.4)";
+            ctx.strokeStyle = "rgba(21, 21, 21, 0.2)";
             ctx.lineWidth = 6;
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // --- CAGES (BUTS) NÉOBRUTALISTES ---
+            // CAGES (BUTS) Empiétant sur la bordure (Tracé manuel pour éviter les doubles bords)
+            
+            // But Ennemi (En Haut)
+            ctx.fillStyle = "var(--enemy-color)";
+            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 20); // Fond
+            ctx.beginPath();
+            ctx.moveTo(goalX1, 0); // Démarre au bord haut
+            ctx.lineTo(goalX1, 20); // Descend
+            ctx.lineTo(goalX2, 20); // Va à droite
+            ctx.lineTo(goalX2, 0); // Remonte au bord haut
             ctx.lineWidth = 6;
             ctx.strokeStyle = "#151515";
+            ctx.stroke(); // Dessine la bordure noire en "U"
 
-            // But ennemi (En Haut - Violet)
-            ctx.fillStyle = "var(--enemy-color)";
-            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 20);
-            ctx.strokeRect(goalX1, -5, GOAL_WIDTH, 25); // -5 pour cacher la bordure du haut
-
-            // Notre but (En Bas - Vert)
+            // Notre but (En Bas)
             ctx.fillStyle = "var(--secondary-color)";
             ctx.fillRect(goalX1, canvas.height - 20, GOAL_WIDTH, 20);
-            ctx.strokeRect(goalX1, canvas.height - 20, GOAL_WIDTH, 25);
+            ctx.beginPath();
+            ctx.moveTo(goalX1, canvas.height); 
+            ctx.lineTo(goalX1, canvas.height - 20); 
+            ctx.lineTo(goalX2, canvas.height - 20); 
+            ctx.lineTo(goalX2, canvas.height); 
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "#151515";
+            ctx.stroke();
 
-            // --- DESSIN DES TRAITS ---
+            // DESSIN DES TRAITS
             drawnPaths.forEach(p => {
                 let isTopZone = p.path[0].y < canvas.height / 2;
                 let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
@@ -392,10 +440,10 @@
             if (currentPath) {
                 let isTopZone = currentPath[0].y < canvas.height / 2;
                 let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
-                drawNeoPath(currentPath, color, 0.5); // Semi-transparent pendant le tracé
+                drawNeoPath(currentPath, color, 0.5); 
             }
 
-            // --- LE PALET ---
+            // LE PALET
             ctx.beginPath();
             ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2);
             ctx.fillStyle = "var(--primary-color)";
