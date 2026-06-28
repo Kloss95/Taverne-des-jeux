@@ -8,12 +8,13 @@
     <style>
         :root {
             --border-color: #151515;
-            --bg-color: #fceea7; /* Fond jaune/beige clair */
+            --bg-color: #fceea7;
             --box-bg: #ffffff;
-            --primary-color: #ff5e5e; /* Rouge corail pour le palet */
-            --secondary-color: #4ade80; /* Vert pour prêt/notre zone */
-            --warning-color: #ffb703; /* Jaune/orange pour cooldown */
-            --enemy-color: #a78bfa; /* Violet pour la zone adverse */
+            --primary-color: #ff5e5e;
+            --secondary-color: #4ade80;
+            --warning-color: #ffb703;
+            --enemy-color: #a78bfa;
+            --goal-color: #38bdf8;
         }
 
         body { 
@@ -24,7 +25,6 @@
             align-items: center; 
             min-height: 100vh; 
             background-color: var(--bg-color); 
-            /* Motif à pois type BD/Pop-art */
             background-image: radial-gradient(#15151530 2px, transparent 2px);
             background-size: 24px 24px;
             color: var(--border-color); 
@@ -32,7 +32,6 @@
             overflow: hidden; 
         }
 
-        /* Classe utilitaire pour le style néobrutaliste */
         .neo-box {
             background-color: var(--box-bg);
             border: 4px solid var(--border-color);
@@ -42,7 +41,7 @@
 
         .header {
             padding: 10px 20px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             text-transform: uppercase;
         }
 
@@ -52,10 +51,30 @@
             font-weight: 700;
         }
 
+        /* Conteneur principal pour aligner le canvas et l'UI du bas */
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        canvas { 
+            background-color: var(--box-bg); 
+            cursor: crosshair; 
+            display: block;
+        }
+
+        /* Zone UI en bas du canvas */
+        .bottom-ui {
+            width: 100%;
+            display: flex;
+            justify-content: flex-start;
+            margin-top: 15px;
+        }
+
         .cooldown-container {
-            width: 400px;
+            width: 250px;
             height: 40px;
-            margin-bottom: 20px;
             position: relative;
             overflow: hidden;
             display: flex;
@@ -82,13 +101,8 @@
             position: relative;
             z-index: 2;
             font-weight: 700;
-            font-size: 18px;
+            font-size: 16px;
             text-transform: uppercase;
-        }
-
-        canvas { 
-            background-color: var(--box-bg); 
-            cursor: crosshair; 
         }
     </style>
 </head>
@@ -98,12 +112,16 @@
         <h1>🏒 Draw Hockey</h1>
     </div>
 
-    <div class="cooldown-container neo-box">
-        <div id="cooldown-fill" class="ready"></div>
-        <span class="cooldown-text" id="cooldown-label">PINCEAU PRÊT</span>
+    <div class="game-wrapper">
+        <canvas id="gameCanvas" width="500" height="750" class="neo-box"></canvas>
+        
+        <div class="bottom-ui">
+            <div class="cooldown-container neo-box">
+                <div id="cooldown-fill" class="ready"></div>
+                <span class="cooldown-text" id="cooldown-label">PINCEAU PRÊT</span>
+            </div>
+        </div>
     </div>
-
-    <canvas id="gameCanvas" width="400" height="600" class="neo-box"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -111,94 +129,154 @@
         const cooldownFill = document.getElementById('cooldown-fill');
         const cooldownLabel = document.getElementById('cooldown-label');
 
-        // Variables de jeu
+        // Constantes du jeu
         const COOLDOWN_TIME = 1000; 
+        const TARGET_SPEED = 9; // Vitesse moyenne augmentée
+        const GOAL_WIDTH = 160;
+
+        // Variables d'état
         let lastDrawTime = 0;
         let isDrawing = false;
-        let currentLine = null;
-        let lines = [];
-        const TARGET_SPEED = 6; 
+        let currentPath = null;
+        let activePath = null; // Un seul trait actif par joueur
+        
+        let scores = { player: 0, enemy: 0 };
+        let puck = { x: 250, y: 500, vx: 7, vy: -9, radius: 14 };
 
-        let puck = { x: 200, y: 450, vx: 5, vy: -5, radius: 14 };
+        // Position des cages
+        const goalX1 = (canvas.width - GOAL_WIDTH) / 2;
+        const goalX2 = goalX1 + GOAL_WIDTH;
 
+        // Événements de dessin (Chemin libre)
         canvas.addEventListener('mousedown', (e) => {
             if (Date.now() - lastDrawTime < COOLDOWN_TIME) return;
             const rect = canvas.getBoundingClientRect();
             isDrawing = true;
-            currentLine = { 
-                x1: e.clientX - rect.left, 
-                y1: e.clientY - rect.top, 
-                x2: e.clientX - rect.left, 
-                y2: e.clientY - rect.top 
-            };
+            // On écrase le trait précédent dès qu'on commence à dessiner
+            activePath = null; 
+            currentPath = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
         });
 
         canvas.addEventListener('mousemove', (e) => {
-            if (!isDrawing) return;
+            if (!isDrawing || !currentPath) return;
             const rect = canvas.getBoundingClientRect();
-            currentLine.x2 = e.clientX - rect.left;
-            currentLine.y2 = e.clientY - rect.top;
+            let newX = e.clientX - rect.left;
+            let newY = e.clientY - rect.top;
+            
+            // On ajoute un point seulement si on a bougé d'au moins 5 pixels (optimisation)
+            let lastPoint = currentPath[currentPath.length - 1];
+            if (Math.hypot(newX - lastPoint.x, newY - lastPoint.y) > 5) {
+                currentPath.push({ x: newX, y: newY });
+            }
         });
 
         canvas.addEventListener('mouseup', () => {
             if (!isDrawing) return;
             isDrawing = false;
-            const dist = Math.hypot(currentLine.x2 - currentLine.x1, currentLine.y2 - currentLine.y1);
-            if (dist > 10) {
-                lines.push(currentLine);
+            if (currentPath && currentPath.length > 1) {
+                activePath = currentPath; // On valide le trait
                 lastDrawTime = Date.now();
-                if (lines.length > 4) lines.shift(); // Garde max 4 lignes
             }
-            currentLine = null;
+            currentPath = null;
         });
 
         function normalizeSpeed(vx, vy) {
             let speed = Math.hypot(vx, vy);
-            let newSpeed = (speed * 0.5) + (TARGET_SPEED * 0.5);
+            let newSpeed = (speed * 0.4) + (TARGET_SPEED * 0.6);
             let ratio = newSpeed / speed;
             return { vx: vx * ratio, vy: vy * ratio };
+        }
+
+        function resetPuck(whoScored) {
+            // Efface le trait actuel lors d'un but
+            activePath = null;
+            
+            puck.x = canvas.width / 2;
+            puck.vx = (Math.random() > 0.5 ? 2 : -2); // Légère déviation aléatoire
+
+            if (whoScored === 'enemy') {
+                // L'ennemi a marqué (dans notre but en bas)
+                // Le palet revient au centre de notre terrain et descend vers nous
+                puck.y = canvas.height * 0.75;
+                puck.vy = 4; // Lentement vers le bas
+            } else {
+                // On a marqué (dans le but ennemi en haut)
+                // Le palet revient au centre de son terrain et monte vers lui
+                puck.y = canvas.height * 0.25;
+                puck.vy = -4; // Lentement vers le haut
+            }
         }
 
         function update() {
             puck.x += puck.vx;
             puck.y += puck.vy;
 
-            // Rebond murs (avec la taille du rayon prise en compte)
+            // Murs latéraux (gauche et droite)
             if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
             if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
-            if (puck.y - puck.radius < 0) { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
-            if (puck.y + puck.radius > canvas.height) { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+            
+            // Mur du Haut (But ennemi)
+            if (puck.y - puck.radius < 0) { 
+                if (puck.x > goalX1 && puck.x < goalX2) {
+                    scores.player++;
+                    resetPuck('player');
+                } else {
+                    puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
+                }
+            }
 
-            // Collisions lignes
-            for (let i = 0; i < lines.length; i++) {
-                let line = lines[i];
-                let abx = line.x2 - line.x1; let aby = line.y2 - line.y1;
-                let apx = puck.x - line.x1; let apy = puck.y - line.y1;
+            // Mur du Bas (Notre but)
+            if (puck.y + puck.radius > canvas.height) { 
+                if (puck.x > goalX1 && puck.x < goalX2) {
+                    scores.enemy++;
+                    resetPuck('enemy');
+                } else {
+                    puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
+                }
+            }
 
-                let t = (apx * abx + apy * aby) / (abx * abx + aby * aby);
-                t = Math.max(0, Math.min(1, t)); 
+            // Collisions avec le trait libre (activePath)
+            if (activePath && activePath.length > 1) {
+                let collisionDetected = false;
+                
+                // On vérifie chaque segment du tracé
+                for (let i = 0; i < activePath.length - 1; i++) {
+                    let p1 = activePath[i];
+                    let p2 = activePath[i + 1];
 
-                let closestX = line.x1 + t * abx; let closestY = line.y1 + t * aby;
-                let dist = Math.hypot(puck.x - closestX, puck.y - closestY);
+                    let abx = p2.x - p1.x; let aby = p2.y - p1.y;
+                    let apx = puck.x - p1.x; let apy = puck.y - p1.y;
 
-                if (dist < puck.radius + 4) { // +4 pour compenser l'épaisseur visuelle du trait
-                    let nx = (puck.x - closestX) / dist; let ny = (puck.y - closestY) / dist;
-                    let dot = puck.vx * nx + puck.vy * ny;
-                    
-                    if (dot < 0) {
-                        puck.vx -= 2 * dot * nx;
-                        puck.vy -= 2 * dot * ny;
+                    let t = (apx * abx + apy * aby) / (abx * abx + aby * aby);
+                    t = Math.max(0, Math.min(1, t)); 
 
-                        let midY = (line.y1 + line.y2) / 2;
-                        if (midY < canvas.height / 2) {
-                            puck.vx *= 0.7; puck.vy *= 0.7; // Malus zone adverse
-                        } else {
-                            puck.vx *= 1.15; puck.vy *= 1.15; // Boost notre zone
+                    let closestX = p1.x + t * abx; let closestY = p1.y + t * aby;
+                    let dist = Math.hypot(puck.x - closestX, puck.y - closestY);
+
+                    if (dist < puck.radius + 4) {
+                        let nx = (puck.x - closestX) / dist; let ny = (puck.y - closestY) / dist;
+                        let dot = puck.vx * nx + puck.vy * ny;
+                        
+                        if (dot < 0) {
+                            puck.vx -= 2 * dot * nx;
+                            puck.vy -= 2 * dot * ny;
+
+                            // Vérification de la zone où le rebond a lieu
+                            if (p1.y < canvas.height / 2) {
+                                puck.vx *= 0.85; puck.vy *= 0.85; // Malus zone adverse
+                            } else {
+                                puck.vx *= 1.3; puck.vy *= 1.3; // Boost notre zone
+                            }
+
+                            collisionDetected = true;
+                            break; // On arrête la boucle pour ne rebondir qu'une fois
                         }
-
-                        lines.splice(i, 1);
-                        break;
                     }
+                }
+
+                // Si le palet touche le trait, le trait disparaît
+                if (collisionDetected) {
+                    activePath = null;
                 }
             }
 
@@ -215,17 +293,39 @@
             }
         }
 
+        function drawNeoPath(path, innerColor) {
+            if (!path || path.length < 2) return;
+            
+            // Contour noir
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for(let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+            ctx.strokeStyle = "#151515";
+            ctx.lineWidth = 14;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.stroke();
+
+            // Intérieur coloré
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for(let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+            ctx.strokeStyle = innerColor;
+            ctx.lineWidth = 6;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            ctx.stroke();
+        }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Textes de fond (Zones)
-            ctx.fillStyle = "rgba(21, 21, 21, 0.1)";
-            ctx.font = "bold 28px Fredoka";
-            ctx.textAlign = "center";
-            ctx.fillText("ZONE ADVERSE", canvas.width / 2, canvas.height / 4);
-            ctx.fillText("NOTRE ZONE", canvas.width / 2, canvas.height * 0.75);
-
-            // Ligne médiane en pointillés noirs épais
+            // Dessin des Cages (Buts)
+            ctx.fillStyle = "var(--goal-color)";
+            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 15); // But ennemi
+            ctx.fillRect(goalX1, canvas.height - 15, GOAL_WIDTH, 15); // Notre but
+            
+            // Ligne médiane
             ctx.setLineDash([15, 15]);
             ctx.beginPath();
             ctx.moveTo(0, canvas.height / 2);
@@ -235,50 +335,38 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Fonction pour dessiner une ligne style "Néobrutaliste" (contour noir + intérieur couleur)
-            function drawNeoLine(x1, y1, x2, y2, innerColor) {
-                // Contour noir
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = "#151515";
-                ctx.lineWidth = 14;
-                ctx.lineCap = "round";
-                ctx.stroke();
-                
-                // Intérieur coloré
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = innerColor;
-                ctx.lineWidth = 6;
-                ctx.lineCap = "round";
-                ctx.stroke();
+            // Affichage des Scores au centre
+            ctx.fillStyle = "rgba(21, 21, 21, 0.08)";
+            ctx.font = "bold 100px Fredoka";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(scores.enemy, canvas.width / 2, canvas.height / 4);
+            ctx.fillText(scores.player, canvas.width / 2, canvas.height * 0.75);
+            ctx.textBaseline = "alphabetic";
+
+            // Dessin du trait validé
+            if (activePath) {
+                let isTopZone = activePath[0].y < canvas.height / 2;
+                let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
+                drawNeoPath(activePath, color);
             }
 
-            // Dessiner les lignes posées
-            lines.forEach(line => {
-                let midY = (line.y1 + line.y2) / 2;
-                let color = midY < canvas.height / 2 ? "#a78bfa" : "#4ade80"; // Violet vs Vert
-                drawNeoLine(line.x1, line.y1, line.x2, line.y2, color);
-            });
-
-            // Dessiner la ligne en cours de tracé (semi-transparente)
-            if (currentLine) {
+            // Dessin du trait en cours (semi-transparent)
+            if (currentPath) {
                 ctx.globalAlpha = 0.5;
-                let midY = (currentLine.y1 + currentLine.y2) / 2;
-                let color = midY < canvas.height / 2 ? "#a78bfa" : "#4ade80";
-                drawNeoLine(currentLine.x1, currentLine.y1, currentLine.x2, currentLine.y2, color);
+                let isTopZone = currentPath[0].y < canvas.height / 2;
+                let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
+                drawNeoPath(currentPath, color);
                 ctx.globalAlpha = 1.0;
             }
 
-            // Dessiner le palet (Style néobrutaliste)
+            // Dessiner le palet
             ctx.beginPath();
             ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2);
-            ctx.fillStyle = "#ff5e5e"; // Rouge pop
+            ctx.fillStyle = "var(--primary-color)";
             ctx.fill();
             ctx.lineWidth = 4;
-            ctx.strokeStyle = "#151515"; // Contour noir
+            ctx.strokeStyle = "#151515";
             ctx.stroke();
             ctx.closePath();
         }
