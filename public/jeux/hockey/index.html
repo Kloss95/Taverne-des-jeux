@@ -26,39 +26,20 @@
             overflow-x: hidden; padding: 10px; box-sizing: border-box;
         }
 
-        .neo-box {
-            background-color: #ffffff; border: 4px solid var(--border-color);
-            border-radius: 12px; box-shadow: 4px 4px 0px var(--border-color);
-        }
+        .neo-box { background-color: #ffffff; border: 4px solid var(--border-color); border-radius: 12px; box-shadow: 4px 4px 0px var(--border-color); }
 
-        /* LOBBY SCREEN */
-        #lobby-screen {
-            padding: 40px; text-align: center; width: 100%; max-width: 500px;
-            display: flex; flex-direction: column; gap: 20px; box-sizing: border-box;
-        }
+        #lobby-screen { padding: 40px; text-align: center; width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box; }
         #lobby-screen h1 { font-size: 32px; margin: 0; text-transform: uppercase; }
         #lobby-screen p { font-size: 16px; margin: 0; font-weight: 600; }
         
-        .lobby-input {
-            width: 100%; padding: 15px; font-size: 16px; font-weight: 700;
-            font-family: 'Fredoka', sans-serif; text-align: center;
-            border: 4px solid var(--border-color); border-radius: 8px; box-sizing: border-box;
-        }
-        .lobby-btn {
-            width: 100%; padding: 15px; font-size: 18px; font-weight: 700; text-transform: uppercase;
-            font-family: 'Fredoka', sans-serif; cursor: pointer;
-            border: 4px solid var(--border-color); border-radius: 8px;
-            box-shadow: 4px 4px 0px var(--border-color); transition: transform 0.1s;
-        }
+        .lobby-input { width: 100%; padding: 15px; font-size: 16px; font-weight: 700; font-family: 'Fredoka', sans-serif; text-align: center; border: 4px solid var(--border-color); border-radius: 8px; box-sizing: border-box; }
+        .lobby-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: 700; text-transform: uppercase; font-family: 'Fredoka', sans-serif; cursor: pointer; border: 4px solid var(--border-color); border-radius: 8px; box-shadow: 4px 4px 0px var(--border-color); transition: transform 0.1s; }
         .lobby-btn:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px var(--border-color); }
         .btn-yellow { background-color: #ffd64f; }
         .btn-blue { background-color: #3b82f6; color: white; }
-        
         .join-row { display: flex; gap: 10px; }
 
-        /* GAME SCREEN */
         #game-screen { display: none; flex-direction: column; align-items: center; width: 100%; }
-        
         .header-game { background-color: #ffffff; padding: 10px 20px; margin-bottom: 20px; text-transform: uppercase; }
         .header-game h2 { margin: 0; font-size: 22px; }
 
@@ -75,10 +56,9 @@
         .cooldown-status { width: 100%; padding: 10px 0; text-align: center; font-size: 14px; font-weight: 700; background-color: #ffffff; }
 
         .score-box { background-color: #ffffff; width: 100%; padding: 10px; text-align: center; display: flex; flex-direction: column; gap: 5px; box-sizing: border-box; }
-        .score-title { font-size: 14px; font-weight: 700; padding: 5px; border-radius: 6px; border: 3px solid var(--border-color); }
+        .score-title { font-size: 14px; font-weight: 700; padding: 5px; border-radius: 6px; border: 3px solid var(--border-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .score-value { font-size: 48px; font-weight: 700; line-height: 1; }
 
-        /* OVERLAYS */
         #countdown-overlay, #game-over-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(21, 21, 21, 0.8); display: none; flex-direction: column;
@@ -110,7 +90,7 @@
         <p>OU</p>
         
         <div class="join-row">
-            <input type="text" id="room-code-input" class="lobby-input" placeholder="CODE">
+            <input type="text" id="room-code-input" class="lobby-input" placeholder="CODE" oninput="this.value = this.value.toUpperCase()">
             <button class="lobby-btn btn-blue" onclick="joinRoom()">REJOINDRE</button>
         </div>
         <p id="lobby-msg" style="color: red; display: none;"></p>
@@ -218,6 +198,14 @@
                 document.getElementById('display-room-code').innerText = "Code : " + myRoomCode;
                 setupColors(); lobbyScreen.style.display = 'none'; gameScreen.style.display = 'flex';
             }
+
+            // --- NOUVEAUTÉ : Affichage des pseudos ---
+            if (data.players) {
+                const me = data.players.find(p => p.id === socket.id);
+                const enemy = data.players.find(p => p.id !== socket.id);
+                document.getElementById('title-player').innerText = me ? me.name : "TOI";
+                document.getElementById('title-enemy').innerText = enemy ? enemy.name : "ADVERSAIRE";
+            }
             
             gameOverOverlay.style.display = 'none'; countdownOverlay.style.display = 'flex';
             drawnPaths = []; scores = { host: 0, client: 0 }; updateScoreUI();
@@ -261,9 +249,6 @@
         socket.on('hockey_playerDisconnected', () => { alert("L'adversaire a quitté la partie."); location.reload(); });
 
 
-        // ==========================================
-        // 🔄 INVERSION DES CONTRÔLES POUR LE CLIENT
-        // ==========================================
         function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
@@ -272,20 +257,13 @@
             
             let x = (clientX - rect.left) * scaleX; 
             let y = (clientY - rect.top) * scaleY;
-
-            // ASTUCE MAGIQUE : On inverse le clic du client pour que ça corresponde à sa caméra !
-            if (myRole === 'client') {
-                x = canvas.width - x;
-                y = canvas.height - y;
-            }
-
+            if (myRole === 'client') { x = canvas.width - x; y = canvas.height - y; }
             return { x, y };
         }
 
         function startDraw(pos) {
             if (!gameActive || Date.now() - lastDrawTime < COOLDOWN_TIME) return;
-            isDrawing = true;
-            currentPath = [{ x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) }];
+            isDrawing = true; currentPath = [{ x: Math.max(0, Math.min(canvas.width, pos.x)), y: Math.max(0, Math.min(canvas.height, pos.y)) }];
         }
 
         function moveDraw(pos) {
@@ -308,10 +286,7 @@
             currentPath = null;
         }
 
-        socket.on('hockey_newLine', (pathInfo) => {
-            pathInfo.timestamp = Date.now(); 
-            drawnPaths.push(pathInfo);
-        });
+        socket.on('hockey_newLine', (pathInfo) => { pathInfo.timestamp = Date.now(); drawnPaths.push(pathInfo); });
 
         canvas.addEventListener('mousedown', (e) => startDraw(getPointerPos(e)));
         window.addEventListener('mousemove', (e) => { if(isDrawing) moveDraw(getPointerPos(e)); });
@@ -326,19 +301,15 @@
             return { vx: vx * (newSpeed / speed), vy: vy * (newSpeed / speed) };
         }
 
-        // ==========================================
-        // CORRECTION : SENS DE LA BALLE APRÈS UN BUT
-        // ==========================================
         function resetPuck(whoScored) {
             puck.x = canvas.width / 2; puck.y = canvas.height / 2;
             puck.vx = (Math.random() > 0.5 ? 2 : -2);
-            
-            // Si l'hôte marque, la balle va vers le client (-Y). Si le client marque, vers l'hôte (+Y)
             puck.vy = (whoScored === 'host') ? -2 : 2; 
             drawnPaths = []; 
         }
 
         function updateScoreUI() {
+            // Affichage correct selon qui on est
             if (myRole === 'host') {
                 document.getElementById('score-player').innerText = scores.host;
                 document.getElementById('score-enemy').innerText = scores.client;
@@ -374,13 +345,19 @@
                 if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 
-                if (puck.y - puck.radius < 0) { 
-                    if (puck.x > goalX1 && puck.x < goalX2) { scores.host++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); } 
-                    else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                // --- CORRECTION DES POINTS : Logique stricte ---
+                if (puck.y - puck.radius < 0) { // Si la balle tape la zone HAUTE (Goal du Client)
+                    if (puck.x > goalX1 && puck.x < goalX2) { 
+                        scores.host++; // L'Hôte marque un but !
+                        socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); 
+                    } else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
-                if (puck.y + puck.radius > canvas.height) { 
-                    if (puck.x > goalX1 && puck.x < goalX2) { scores.client++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); } 
-                    else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                
+                if (puck.y + puck.radius > canvas.height) { // Si la balle tape la zone BASSE (Goal de l'Hôte)
+                    if (puck.x > goalX1 && puck.x < goalX2) { 
+                        scores.client++; // Le Client marque un but !
+                        socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); 
+                    } else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
 
                 for (let i = drawnPaths.length - 1; i >= 0; i--) {
@@ -421,21 +398,16 @@
             ctx.globalAlpha = 1.0;
         }
 
-        // ==========================================
-        // 🔄 ROTATION DE LA CAMÉRA POUR LE CLIENT
-        // ==========================================
         function draw() {
             if (!myRole) return; 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // ASTUCE MAGIQUE : On retourne complètement le Canvas pour le Joueur 2
             ctx.save();
             if (myRole === 'client') {
                 ctx.translate(canvas.width, canvas.height);
-                ctx.rotate(Math.PI); // 180 degrés
+                ctx.rotate(Math.PI); 
             }
 
-            // A partir d'ici on dessine normalement, le Canvas gère l'illusion !
             ctx.lineWidth = 4; ctx.strokeStyle = "#151515";
             ctx.beginPath(); ctx.arc(canvas.width / 2, 0, 90, 0, Math.PI); ctx.fillStyle = "rgba(167, 139, 250, 0.25)"; ctx.fill(); ctx.stroke(); 
             ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height, 90, Math.PI, 0); ctx.fillStyle = "rgba(74, 222, 128, 0.25)"; ctx.fill(); ctx.stroke(); 
@@ -453,7 +425,6 @@
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2); ctx.fillStyle = COLOR_PUCK; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#151515"; ctx.stroke();
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius * 0.4, 0, Math.PI * 2); ctx.fillStyle = "#151515"; ctx.fill(); ctx.closePath();
 
-            // Fin de la rotation (Pour que ça ne bugge pas au frame suivant)
             ctx.restore();
         }
 
