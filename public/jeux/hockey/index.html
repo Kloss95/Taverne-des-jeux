@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Draw Hockey</title>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script> <style>
+    <script src="/socket.io/socket.io.js"></script> 
+    <style>
         :root {
             --border-color: #151515;
             --bg-color: #fceea7;
@@ -30,7 +31,7 @@
             border-radius: 12px; box-shadow: 4px 4px 0px var(--border-color);
         }
 
-        /* LOBBY SCREEN (Style Duel de Drapeaux) */
+        /* LOBBY SCREEN */
         #lobby-screen {
             padding: 40px; text-align: center; width: 100%; max-width: 500px;
             display: flex; flex-direction: column; gap: 20px; box-sizing: border-box;
@@ -151,9 +152,8 @@
     </div>
 
     <script>
-        const socket = io(); // Connexion Socket.io
+        const socket = io(); 
         
-        // UI Elements
         const lobbyScreen = document.getElementById('lobby-screen');
         const gameScreen = document.getElementById('game-screen');
         const countdownOverlay = document.getElementById('countdown-overlay');
@@ -162,17 +162,15 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Variables Multijoueur
         let myRoomCode = '';
-        let myRole = ''; // 'host' (Vert/Bas) ou 'client' (Violet/Haut)
+        let myRole = ''; 
         let gameActive = false;
         
-        // Variables Jeu
         const COOLDOWN_TIME = 1000; const LIFESPAN = 1000; 
         const MIN_SPEED = 9; const BOOST_SPEED = 14; const MAX_SPEED = 22;  
         const GOAL_WIDTH = 140; 
-        const COLOR_HOST = "#4ade80"; // Vert
-        const COLOR_CLIENT = "#a78bfa"; // Violet
+        const COLOR_HOST = "#4ade80"; 
+        const COLOR_CLIENT = "#a78bfa"; 
         const COLOR_PUCK = "#ff5e5e";
 
         let lastDrawTime = 0; let isDrawing = false; let currentPath = null;
@@ -182,9 +180,6 @@
 
         const goalX1 = (canvas.width - GOAL_WIDTH) / 2; const goalX2 = goalX1 + GOAL_WIDTH;
 
-        // ==========================================
-        // LOGIQUE LOBBY & SOCKET.IO
-        // ==========================================
         function createRoom() {
             const user = document.getElementById('username').value;
             socket.emit('hockey_createRoom', user);
@@ -197,12 +192,9 @@
         }
 
         socket.on('hockey_roomCreated', (code) => {
-            myRoomCode = code;
-            myRole = 'host';
+            myRoomCode = code; myRole = 'host';
             document.getElementById('display-room-code').innerText = "Code : " + code;
-            setupColors();
-            lobbyScreen.style.display = 'none';
-            gameScreen.style.display = 'flex';
+            setupColors(); lobbyScreen.style.display = 'none'; gameScreen.style.display = 'flex';
         });
 
         socket.on('hockey_error', (msg) => {
@@ -211,7 +203,6 @@
         });
 
         function setupColors() {
-            // Le Host est en bas (Vert), le Client est en haut (Violet)
             if (myRole === 'host') {
                 document.getElementById('title-player').style.backgroundColor = COLOR_HOST;
                 document.getElementById('title-enemy').style.backgroundColor = COLOR_CLIENT;
@@ -221,25 +212,16 @@
             }
         }
 
-        // ==========================================
-        // DÉROULEMENT DE LA PARTIE
-        // ==========================================
         socket.on('hockey_startCountdown', (data) => {
-            if (!myRole) { // Si je viens de rejoindre
-                myRoomCode = data.roomCode;
-                myRole = data.hostId === socket.id ? 'host' : 'client';
+            if (!myRole) {
+                myRoomCode = data.roomCode; myRole = data.hostId === socket.id ? 'host' : 'client';
                 document.getElementById('display-room-code').innerText = "Code : " + myRoomCode;
-                setupColors();
-                lobbyScreen.style.display = 'none';
-                gameScreen.style.display = 'flex';
+                setupColors(); lobbyScreen.style.display = 'none'; gameScreen.style.display = 'flex';
             }
             
-            gameOverOverlay.style.display = 'none';
-            countdownOverlay.style.display = 'flex';
-            drawnPaths = []; scores = { host: 0, client: 0 };
-            updateScoreUI();
+            gameOverOverlay.style.display = 'none'; countdownOverlay.style.display = 'flex';
+            drawnPaths = []; scores = { host: 0, client: 0 }; updateScoreUI();
             
-            // Placement initial du palet (immobile)
             puck.x = 250; puck.y = 375; puck.vx = 0; puck.vy = 0;
 
             let count = 3; countdownNumber.innerText = count;
@@ -247,17 +229,13 @@
                 count--;
                 if (count > 0) countdownNumber.innerText = count;
                 else if (count === 0) countdownNumber.innerText = "GO!";
-                else {
-                    clearInterval(interval);
-                    countdownOverlay.style.display = 'none';
-                }
+                else { clearInterval(interval); countdownOverlay.style.display = 'none'; }
             }, 1000);
         });
 
         socket.on('hockey_gameStart', () => {
             gameActive = true;
             if (myRole === 'host') {
-                // L'hôte lance la balle au début
                 puck.vy = Math.random() > 0.5 ? 4 : -4;
                 puck.vx = Math.random() > 0.5 ? 2 : -2;
             }
@@ -269,8 +247,7 @@
         }
 
         socket.on('hockey_gameOver', (winnerRole) => {
-            gameActive = false;
-            gameOverOverlay.style.display = 'flex';
+            gameActive = false; gameOverOverlay.style.display = 'flex';
             gameOverOverlay.querySelector('button').innerText = "REJOUER";
             if (winnerRole === myRole) {
                 document.getElementById('winner-text').innerText = "VICTOIRE !";
@@ -281,21 +258,28 @@
             }
         });
 
-        socket.on('hockey_playerDisconnected', () => {
-            alert("L'adversaire a quitté la partie.");
-            location.reload();
-        });
+        socket.on('hockey_playerDisconnected', () => { alert("L'adversaire a quitté la partie."); location.reload(); });
 
 
         // ==========================================
-        // DESSIN & SYNCHRONISATION
+        // 🔄 INVERSION DES CONTRÔLES POUR LE CLIENT
         // ==========================================
         function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
             let clientX = e.clientX; let clientY = e.clientY;
             if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
-            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+            
+            let x = (clientX - rect.left) * scaleX; 
+            let y = (clientY - rect.top) * scaleY;
+
+            // ASTUCE MAGIQUE : On inverse le clic du client pour que ça corresponde à sa caméra !
+            if (myRole === 'client') {
+                x = canvas.width - x;
+                y = canvas.height - y;
+            }
+
+            return { x, y };
         }
 
         function startDraw(pos) {
@@ -318,15 +302,14 @@
             if (currentPath && currentPath.length > 1) {
                 let pathInfo = { path: currentPath, timestamp: Date.now(), owner: myRole };
                 drawnPaths.push(pathInfo);
-                socket.emit('hockey_drawLine', { roomCode: myRoomCode, pathInfo }); // Envoi à l'adversaire
+                socket.emit('hockey_drawLine', { roomCode: myRoomCode, pathInfo }); 
                 lastDrawTime = Date.now();
             }
             currentPath = null;
         }
 
-        // Réception du trait de l'adversaire
         socket.on('hockey_newLine', (pathInfo) => {
-            pathInfo.timestamp = Date.now(); // Reset du timer local pour synchro visuelle
+            pathInfo.timestamp = Date.now(); 
             drawnPaths.push(pathInfo);
         });
 
@@ -338,18 +321,20 @@
         window.addEventListener('touchend', endDraw);
 
 
-        // ==========================================
-        // MOTEUR PHYSIQUE (Hébergé par le Joueur 1)
-        // ==========================================
         function normalizeSpeedWall(vx, vy) {
             let speed = Math.hypot(vx, vy); let newSpeed = Math.max(MIN_SPEED, speed * 0.9);
             return { vx: vx * (newSpeed / speed), vy: vy * (newSpeed / speed) };
         }
 
+        // ==========================================
+        // CORRECTION : SENS DE LA BALLE APRÈS UN BUT
+        // ==========================================
         function resetPuck(whoScored) {
             puck.x = canvas.width / 2; puck.y = canvas.height / 2;
             puck.vx = (Math.random() > 0.5 ? 2 : -2);
-            puck.vy = whoScored === 'enemy' ? -2 : 2; 
+            
+            // Si l'hôte marque, la balle va vers le client (-Y). Si le client marque, vers l'hôte (+Y)
+            puck.vy = (whoScored === 'host') ? -2 : 2; 
             drawnPaths = []; 
         }
 
@@ -363,21 +348,13 @@
             }
         }
 
-        socket.on('hockey_updateScore', (newScores) => {
-            scores = newScores; updateScoreUI(); drawnPaths = [];
-        });
-
-        socket.on('hockey_updatePuck', (serverPuck) => {
-            if (myRole === 'client') {
-                puck = serverPuck; // Le client met à jour la balle aveuglément
-            }
-        });
+        socket.on('hockey_updateScore', (newScores) => { scores = newScores; updateScoreUI(); drawnPaths = []; });
+        socket.on('hockey_updatePuck', (serverPuck) => { if (myRole === 'client') puck = serverPuck; });
 
         function update() {
             let now = Date.now();
             drawnPaths = drawnPaths.filter(p => now - p.timestamp < LIFESPAN);
 
-            // JAUGE UI (Pour tout le monde)
             let timePassed = now - lastDrawTime;
             const cooldownFill = document.getElementById('cooldown-fill');
             const cooldownStatus = document.getElementById('cooldown-status');
@@ -391,27 +368,21 @@
 
             if (!gameActive) return;
 
-            // PHYSIQUE (Seul l'hôte la calcule pour éviter les désynchronisations)
             if (myRole === 'host') {
                 puck.x += puck.vx; puck.y += puck.vy;
 
-                // Murs latéraux
                 if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 
-                // Buts
                 if (puck.y - puck.radius < 0) { 
-                    if (puck.x > goalX1 && puck.x < goalX2) { 
-                        scores.host++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); 
-                    } else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                    if (puck.x > goalX1 && puck.x < goalX2) { scores.host++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); } 
+                    else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
                 if (puck.y + puck.radius > canvas.height) { 
-                    if (puck.x > goalX1 && puck.x < goalX2) { 
-                        scores.client++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); 
-                    } else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                    if (puck.x > goalX1 && puck.x < goalX2) { scores.client++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); } 
+                    else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
 
-                // Collisions Lignes
                 for (let i = drawnPaths.length - 1; i >= 0; i--) {
                     let path = drawnPaths[i].path; let collisionDetected = false;
                     for (let j = 0; j < path.length - 1; j++) {
@@ -436,15 +407,10 @@
                     }
                     if (collisionDetected) drawnPaths.splice(i, 1);
                 }
-                
-                // Envoi continu de la position de la balle au client
                 socket.emit('hockey_syncPuck', { roomCode: myRoomCode, puck });
             }
         }
 
-        // ==========================================
-        // RENDU VISUEL
-        // ==========================================
         function drawNeoPath(path, ownerColor, alpha = 1.0) {
             if (!path || path.length < 2) return;
             ctx.globalAlpha = alpha;
@@ -455,31 +421,40 @@
             ctx.globalAlpha = 1.0;
         }
 
+        // ==========================================
+        // 🔄 ROTATION DE LA CAMÉRA POUR LE CLIENT
+        // ==========================================
         function draw() {
-            if (!myRole) return; // Ne rien dessiner si dans le lobby
+            if (!myRole) return; 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Zones Gardiens
-            ctx.lineWidth = 4; ctx.strokeStyle = "#151515";
-            ctx.beginPath(); ctx.arc(canvas.width / 2, 0, 90, 0, Math.PI); ctx.fillStyle = "rgba(167, 139, 250, 0.25)"; ctx.fill(); ctx.stroke(); // Haut (Violet)
-            ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height, 90, Math.PI, 0); ctx.fillStyle = "rgba(74, 222, 128, 0.25)"; ctx.fill(); ctx.stroke(); // Bas (Vert)
+            // ASTUCE MAGIQUE : On retourne complètement le Canvas pour le Joueur 2
+            ctx.save();
+            if (myRole === 'client') {
+                ctx.translate(canvas.width, canvas.height);
+                ctx.rotate(Math.PI); // 180 degrés
+            }
 
-            // Terrain basique
+            // A partir d'ici on dessine normalement, le Canvas gère l'illusion !
+            ctx.lineWidth = 4; ctx.strokeStyle = "#151515";
+            ctx.beginPath(); ctx.arc(canvas.width / 2, 0, 90, 0, Math.PI); ctx.fillStyle = "rgba(167, 139, 250, 0.25)"; ctx.fill(); ctx.stroke(); 
+            ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height, 90, Math.PI, 0); ctx.fillStyle = "rgba(74, 222, 128, 0.25)"; ctx.fill(); ctx.stroke(); 
+
             ctx.beginPath(); ctx.arc(canvas.width / 2, canvas.height / 2, 60, 0, Math.PI * 2); ctx.lineWidth = 6; ctx.strokeStyle = "rgba(21, 21, 21, 0.15)"; ctx.stroke();
             ctx.setLineDash([15, 15]); ctx.beginPath(); ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2); ctx.strokeStyle = "rgba(21, 21, 21, 0.25)"; ctx.lineWidth = 6; ctx.stroke(); ctx.setLineDash([]);
 
-            // Cages (Client en haut / Host en bas)
             ctx.lineWidth = 6; ctx.strokeStyle = "#151515";
             ctx.fillStyle = COLOR_CLIENT; ctx.fillRect(goalX1, 0, GOAL_WIDTH, 15); ctx.strokeRect(goalX1, -3, GOAL_WIDTH, 18);
             ctx.fillStyle = COLOR_HOST; ctx.fillRect(goalX1, canvas.height - 15, GOAL_WIDTH, 15); ctx.strokeRect(goalX1, canvas.height - 15, GOAL_WIDTH, 18);
 
-            // Traits Dessinés
             drawnPaths.forEach(p => drawNeoPath(p.path, p.owner === 'host' ? COLOR_HOST : COLOR_CLIENT));
             if (currentPath) drawNeoPath(currentPath, myRole === 'host' ? COLOR_HOST : COLOR_CLIENT, 0.5);
 
-            // Palet
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2); ctx.fillStyle = COLOR_PUCK; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#151515"; ctx.stroke();
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius * 0.4, 0, Math.PI * 2); ctx.fillStyle = "#151515"; ctx.fill(); ctx.closePath();
+
+            // Fin de la rotation (Pour que ça ne bugge pas au frame suivant)
+            ctx.restore();
         }
 
         function loop() {
