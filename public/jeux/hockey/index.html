@@ -67,14 +67,15 @@
         #countdown-number { font-size: 120px; color: white; text-shadow: 4px 4px 0px var(--border-color); }
         .game-over-text { font-size: 40px; color: white; margin-bottom: 20px; text-align: center; }
 
+        /* NOUVEAU LAYOUT MOBILE : Scores (1), Jauge (2), Terrain (3) */
         @media (max-width: 768px) {
-            .game-container { flex-direction: column; gap: 15px; }
+            .game-container { flex-direction: column; gap: 10px; }
             .panel-droit { order: 1; flex-direction: row; width: 100%; max-width: 500px; justify-content: space-between; }
-            .panel-centre { order: 2; }
-            .panel-gauche { order: 3; flex-direction: row; width: 100%; max-width: 500px; }
-            .cooldown-wrapper { width: 100%; height: 40px; }
+            .panel-gauche { order: 2; flex-direction: row; width: 100%; max-width: 500px; }
+            .panel-centre { order: 3; width: 100%; }
+            .cooldown-wrapper { width: 100%; height: 30px; } /* Plus fine pour ne pas gêner */
             #cooldown-fill { bottom: 0; left: 0; height: 100%; width: var(--fill-pct); }
-            .cooldown-status { width: 120px; }
+            .cooldown-status { width: 100px; font-size: 12px; padding: 5px 0; }
         }
     </style>
 </head>
@@ -155,6 +156,8 @@
 
         let lastDrawTime = 0; let isDrawing = false; let currentPath = null;
         let drawnPaths = []; 
+        let opponentActivePath = null; // Variable pour le trait en cours de l'adversaire
+        
         let scores = { host: 0, client: 0 };
         let puck = { x: 250, y: 375, vx: 0, vy: 0, radius: 14 };
 
@@ -199,7 +202,6 @@
                 setupColors(); lobbyScreen.style.display = 'none'; gameScreen.style.display = 'flex';
             }
 
-            // --- NOUVEAUTÉ : Affichage des pseudos ---
             if (data.players) {
                 const me = data.players.find(p => p.id === socket.id);
                 const enemy = data.players.find(p => p.id !== socket.id);
@@ -208,7 +210,7 @@
             }
             
             gameOverOverlay.style.display = 'none'; countdownOverlay.style.display = 'flex';
-            drawnPaths = []; scores = { host: 0, client: 0 }; updateScoreUI();
+            drawnPaths = []; opponentActivePath = null; scores = { host: 0, client: 0 }; updateScoreUI();
             
             puck.x = 250; puck.y = 375; puck.vx = 0; puck.vy = 0;
 
@@ -248,7 +250,6 @@
 
         socket.on('hockey_playerDisconnected', () => { alert("L'adversaire a quitté la partie."); location.reload(); });
 
-
         function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height;
@@ -271,6 +272,8 @@
             let x = Math.max(0, Math.min(canvas.width, pos.x)); let y = Math.max(0, Math.min(canvas.height, pos.y));
             if (Math.hypot(x - currentPath[currentPath.length - 1].x, y - currentPath[currentPath.length - 1].y) > 5) {
                 currentPath.push({ x, y });
+                // --- ENVOI EN TEMPS RÉEL ---
+                socket.emit('hockey_syncLine', { roomCode: myRoomCode, lineData: { path: currentPath, owner: myRole } });
             }
         }
 
@@ -280,13 +283,20 @@
             if (currentPath && currentPath.length > 1) {
                 let pathInfo = { path: currentPath, timestamp: Date.now(), owner: myRole };
                 drawnPaths.push(pathInfo);
-                socket.emit('hockey_drawLine', { roomCode: myRoomCode, pathInfo }); 
+                // --- ENVOI DE LA FIN DU TRAIT ---
+                socket.emit('hockey_endLine', { roomCode: myRoomCode, lineData: pathInfo }); 
                 lastDrawTime = Date.now();
             }
             currentPath = null;
         }
 
-        socket.on('hockey_newLine', (pathInfo) => { pathInfo.timestamp = Date.now(); drawnPaths.push(pathInfo); });
+        // --- RÉCEPTION DU STREAMING ---
+        socket.on('hockey_syncLine', (lineData) => { opponentActivePath = lineData; });
+        socket.on('hockey_endLine', (lineData) => { 
+            lineData.timestamp = Date.now(); 
+            drawnPaths.push(lineData); 
+            opponentActivePath = null; 
+        });
 
         canvas.addEventListener('mousedown', (e) => startDraw(getPointerPos(e)));
         window.addEventListener('mousemove', (e) => { if(isDrawing) moveDraw(getPointerPos(e)); });
@@ -294,7 +304,6 @@
         canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(getPointerPos(e)); }, { passive: false });
         window.addEventListener('touchmove', (e) => { if(isDrawing) moveDraw(getPointerPos(e)); }, { passive: false });
         window.addEventListener('touchend', endDraw);
-
 
         function normalizeSpeedWall(vx, vy) {
             let speed = Math.hypot(vx, vy); let newSpeed = Math.max(MIN_SPEED, speed * 0.9);
@@ -305,11 +314,10 @@
             puck.x = canvas.width / 2; puck.y = canvas.height / 2;
             puck.vx = (Math.random() > 0.5 ? 2 : -2);
             puck.vy = (whoScored === 'host') ? -2 : 2; 
-            drawnPaths = []; 
+            drawnPaths = []; opponentActivePath = null;
         }
 
         function updateScoreUI() {
-            // Affichage correct selon qui on est
             if (myRole === 'host') {
                 document.getElementById('score-player').innerText = scores.host;
                 document.getElementById('score-enemy').innerText = scores.client;
@@ -319,7 +327,7 @@
             }
         }
 
-        socket.on('hockey_updateScore', (newScores) => { scores = newScores; updateScoreUI(); drawnPaths = []; });
+        socket.on('hockey_updateScore', (newScores) => { scores = newScores; updateScoreUI(); drawnPaths = []; opponentActivePath = null; });
         socket.on('hockey_updatePuck', (serverPuck) => { if (myRole === 'client') puck = serverPuck; });
 
         function update() {
@@ -345,19 +353,14 @@
                 if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 
-                // --- CORRECTION DES POINTS : Logique stricte ---
-                if (puck.y - puck.radius < 0) { // Si la balle tape la zone HAUTE (Goal du Client)
-                    if (puck.x > goalX1 && puck.x < goalX2) { 
-                        scores.host++; // L'Hôte marque un but !
-                        socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); 
-                    } else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                if (puck.y - puck.radius < 0) { 
+                    if (puck.x > goalX1 && puck.x < goalX2) { scores.host++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('host'); } 
+                    else { puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
                 
-                if (puck.y + puck.radius > canvas.height) { // Si la balle tape la zone BASSE (Goal de l'Hôte)
-                    if (puck.x > goalX1 && puck.x < goalX2) { 
-                        scores.client++; // Le Client marque un but !
-                        socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); 
-                    } else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+                if (puck.y + puck.radius > canvas.height) { 
+                    if (puck.x > goalX1 && puck.x < goalX2) { scores.client++; socket.emit('hockey_goalScored', { roomCode: myRoomCode, scores }); resetPuck('client'); } 
+                    else { puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
                 }
 
                 for (let i = drawnPaths.length - 1; i >= 0; i--) {
@@ -373,6 +376,11 @@
                             let nx = (puck.x - closestX) / dist; let ny = (puck.y - closestY) / dist;
                             let dot = puck.vx * nx + puck.vy * ny;
                             if (dot < 0) {
+                                // --- CORRECTION DE COLLISIONS : ANTI-TUNNELING ---
+                                let overlap = (puck.radius + 4) - dist;
+                                puck.x += nx * overlap; 
+                                puck.y += ny * overlap;
+
                                 puck.vx -= 2 * dot * nx; puck.vy -= 2 * dot * ny;
                                 let currentSpeed = Math.hypot(puck.vx, puck.vy);
                                 let newSpeed = (p1.y < canvas.height / 2) ? Math.max(MIN_SPEED, currentSpeed * 0.95) : Math.max(BOOST_SPEED, currentSpeed * 1.25); 
@@ -421,6 +429,12 @@
 
             drawnPaths.forEach(p => drawNeoPath(p.path, p.owner === 'host' ? COLOR_HOST : COLOR_CLIENT));
             if (currentPath) drawNeoPath(currentPath, myRole === 'host' ? COLOR_HOST : COLOR_CLIENT, 0.5);
+            
+            // --- NOUVEAU : Dessiner le trait de l'adversaire en temps réel ---
+            if (opponentActivePath) {
+                let color = opponentActivePath.owner === 'host' ? COLOR_HOST : COLOR_CLIENT;
+                drawNeoPath(opponentActivePath.path, color, 0.5);
+            }
 
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2); ctx.fillStyle = COLOR_PUCK; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = "#151515"; ctx.stroke();
             ctx.beginPath(); ctx.arc(puck.x, puck.y, puck.radius * 0.4, 0, Math.PI * 2); ctx.fillStyle = "#151515"; ctx.fill(); ctx.closePath();
