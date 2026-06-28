@@ -328,13 +328,15 @@ io.on('connection', (socket) => {
         room.players.push({ id: socket.id, name: username || 'Joueur 2', replayReady: false });
         socket.join(roomCode);
         
-        // On passe explicitement la liste des joueurs (pour afficher les pseudos !)
         io.to(roomCode).emit('hockey_startCountdown', { hostId: room.hostId, roomCode: roomCode, players: room.players });
         setTimeout(() => { io.to(roomCode).emit('hockey_gameStart'); }, 3000);
     });
 
     socket.on('hockey_syncPuck', (data) => { socket.to(data.roomCode).emit('hockey_updatePuck', data.puck); });
-    socket.on('hockey_drawLine', (data) => { socket.to(data.roomCode).emit('hockey_newLine', data.pathInfo); });
+    
+    // NOUVEAU : Streaming du trait en temps réel
+    socket.on('hockey_syncLine', (data) => { socket.to(data.roomCode).emit('hockey_syncLine', data.lineData); });
+    socket.on('hockey_endLine', (data) => { socket.to(data.roomCode).emit('hockey_endLine', data.lineData); });
 
     socket.on('hockey_goalScored', (data) => {
         const { roomCode, scores } = data;
