@@ -9,12 +9,11 @@
         :root {
             --border-color: #151515;
             --bg-color: #fceea7;
-            --box-bg: #ffffff;
+            --canvas-bg: #e2e8f0; /* Gris/bleu très doux pour reposer les yeux */
             --primary-color: #ff5e5e;
-            --secondary-color: #4ade80;
+            --secondary-color: #4ade80; /* Vert (Joueur) */
             --warning-color: #ffb703;
-            --enemy-color: #a78bfa;
-            --goal-color: #38bdf8;
+            --enemy-color: #a78bfa;   /* Violet (Adversaire) */
         }
 
         body { 
@@ -33,15 +32,16 @@
         }
 
         .neo-box {
-            background-color: var(--box-bg);
+            background-color: var(--canvas-bg);
             border: 4px solid var(--border-color);
             border-radius: 12px;
             box-shadow: 6px 6px 0px var(--border-color);
         }
 
         .header {
+            background-color: #ffffff;
             padding: 10px 20px;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             text-transform: uppercase;
         }
 
@@ -51,35 +51,33 @@
             font-weight: 700;
         }
 
-        /* Conteneur principal pour aligner le canvas et l'UI du bas */
+        /* Le conteneur relatif permet d'ancrer la jauge par rapport au terrain */
         .game-wrapper {
+            position: relative;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            justify-content: center;
         }
 
         canvas { 
-            background-color: var(--box-bg); 
             cursor: crosshair; 
             display: block;
         }
 
-        /* Zone UI en bas du canvas */
-        .bottom-ui {
-            width: 100%;
-            display: flex;
-            justify-content: flex-start;
-            margin-top: 15px;
-        }
-
+        /* Positionnement exact selon ton schéma : en bas à gauche */
         .cooldown-container {
-            width: 250px;
+            position: absolute;
+            left: -230px; /* Décalé sur la gauche */
+            bottom: 0px;  /* Aligné avec le bas du canvas */
+            width: 200px;
             height: 40px;
-            position: relative;
+            background-color: #ffffff;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            border: 4px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 4px 4px 0px var(--border-color);
         }
 
         #cooldown-fill {
@@ -101,7 +99,7 @@
             position: relative;
             z-index: 2;
             font-weight: 700;
-            font-size: 16px;
+            font-size: 14px;
             text-transform: uppercase;
         }
     </style>
@@ -115,11 +113,9 @@
     <div class="game-wrapper">
         <canvas id="gameCanvas" width="500" height="750" class="neo-box"></canvas>
         
-        <div class="bottom-ui">
-            <div class="cooldown-container neo-box">
-                <div id="cooldown-fill" class="ready"></div>
-                <span class="cooldown-text" id="cooldown-label">PINCEAU PRÊT</span>
-            </div>
+        <div class="cooldown-container">
+            <div id="cooldown-fill" class="ready"></div>
+            <span class="cooldown-text" id="cooldown-label">PINCEAU PRÊT</span>
         </div>
     </div>
 
@@ -129,56 +125,84 @@
         const cooldownFill = document.getElementById('cooldown-fill');
         const cooldownLabel = document.getElementById('cooldown-label');
 
-        // Constantes du jeu
-        const COOLDOWN_TIME = 1000; 
-        const TARGET_SPEED = 9; // Vitesse moyenne augmentée
-        const GOAL_WIDTH = 160;
+        // Constantes
+        const COOLDOWN_TIME = 1000; // 1 seconde de recharge
+        const LIFESPAN = 1000; // Le trait disparait au bout d'1 seconde
+        const TARGET_SPEED = 9; 
+        const GOAL_WIDTH = 180; // Cages légèrement agrandies
 
         // Variables d'état
         let lastDrawTime = 0;
         let isDrawing = false;
         let currentPath = null;
-        let activePath = null; // Un seul trait actif par joueur
+        let drawnPaths = []; // Stocke tous les traits valides avec leur timestamp
         
         let scores = { player: 0, enemy: 0 };
         let puck = { x: 250, y: 500, vx: 7, vy: -9, radius: 14 };
 
-        // Position des cages
         const goalX1 = (canvas.width - GOAL_WIDTH) / 2;
         const goalX2 = goalX1 + GOAL_WIDTH;
 
-        // Événements de dessin (Chemin libre)
-        canvas.addEventListener('mousedown', (e) => {
+        // Fonction pour démarrer le trait
+        function startDraw(x, y) {
             if (Date.now() - lastDrawTime < COOLDOWN_TIME) return;
-            const rect = canvas.getBoundingClientRect();
             isDrawing = true;
-            // On écrase le trait précédent dès qu'on commence à dessiner
-            activePath = null; 
-            currentPath = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
-        });
+            // On s'assure que le point de départ est dans le canvas
+            x = Math.max(0, Math.min(canvas.width, x));
+            y = Math.max(0, Math.min(canvas.height, y));
+            currentPath = [{ x, y }];
+        }
 
-        canvas.addEventListener('mousemove', (e) => {
+        // Fonction pour continuer le trait (avec bridage aux bords du terrain)
+        function moveDraw(x, y) {
             if (!isDrawing || !currentPath) return;
-            const rect = canvas.getBoundingClientRect();
-            let newX = e.clientX - rect.left;
-            let newY = e.clientY - rect.top;
             
-            // On ajoute un point seulement si on a bougé d'au moins 5 pixels (optimisation)
-            let lastPoint = currentPath[currentPath.length - 1];
-            if (Math.hypot(newX - lastPoint.x, newY - lastPoint.y) > 5) {
-                currentPath.push({ x: newX, y: newY });
-            }
-        });
+            // "Clamping" : empêche le trait de sortir visuellement du canvas
+            x = Math.max(0, Math.min(canvas.width, x));
+            y = Math.max(0, Math.min(canvas.height, y));
 
-        canvas.addEventListener('mouseup', () => {
+            let lastPoint = currentPath[currentPath.length - 1];
+            if (Math.hypot(x - lastPoint.x, y - lastPoint.y) > 5) {
+                currentPath.push({ x, y });
+            }
+        }
+
+        // Fonction pour terminer et sauvegarder le trait
+        function endDraw() {
             if (!isDrawing) return;
             isDrawing = false;
             if (currentPath && currentPath.length > 1) {
-                activePath = currentPath; // On valide le trait
+                drawnPaths.push({ path: currentPath, timestamp: Date.now() });
                 lastDrawTime = Date.now();
             }
             currentPath = null;
+        }
+
+        // Événements Souris (Le mouseup et mousemove sont sur WINDOW pour ne pas perdre le trait !)
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startDraw(e.clientX - rect.left, e.clientY - rect.top);
         });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            moveDraw(e.clientX - rect.left, e.clientY - rect.top);
+        });
+        window.addEventListener('mouseup', endDraw);
+
+        // Événements Tactiles (Smartphones / Tablettes)
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            startDraw(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            moveDraw(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+        }, { passive: false });
+        window.addEventListener('touchend', endDraw);
+
 
         function normalizeSpeed(vx, vy) {
             let speed = Math.hypot(vx, vy);
@@ -188,62 +212,60 @@
         }
 
         function resetPuck(whoScored) {
-            // Efface le trait actuel lors d'un but
-            activePath = null;
-            
             puck.x = canvas.width / 2;
-            puck.vx = (Math.random() > 0.5 ? 2 : -2); // Légère déviation aléatoire
+            puck.vx = (Math.random() > 0.5 ? 2 : -2);
+            
+            // Efface les traits lors d'un but
+            drawnPaths = []; 
 
             if (whoScored === 'enemy') {
-                // L'ennemi a marqué (dans notre but en bas)
-                // Le palet revient au centre de notre terrain et descend vers nous
                 puck.y = canvas.height * 0.75;
-                puck.vy = 4; // Lentement vers le bas
+                puck.vy = 4; 
             } else {
-                // On a marqué (dans le but ennemi en haut)
-                // Le palet revient au centre de son terrain et monte vers lui
                 puck.y = canvas.height * 0.25;
-                puck.vy = -4; // Lentement vers le haut
+                puck.vy = -4; 
             }
         }
 
         function update() {
+            let now = Date.now();
+
+            // 1. Nettoyage des traits vieux de plus d'1 seconde
+            drawnPaths = drawnPaths.filter(p => now - p.timestamp < LIFESPAN);
+
             puck.x += puck.vx;
             puck.y += puck.vy;
 
-            // Murs latéraux (gauche et droite)
+            // Murs latéraux
             if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
             if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
             
-            // Mur du Haut (But ennemi)
+            // Mur Haut (Cage ennemi)
             if (puck.y - puck.radius < 0) { 
                 if (puck.x > goalX1 && puck.x < goalX2) {
-                    scores.player++;
-                    resetPuck('player');
+                    scores.player++; resetPuck('player');
                 } else {
                     puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
                 }
             }
 
-            // Mur du Bas (Notre but)
+            // Mur Bas (Notre Cage)
             if (puck.y + puck.radius > canvas.height) { 
                 if (puck.x > goalX1 && puck.x < goalX2) {
-                    scores.enemy++;
-                    resetPuck('enemy');
+                    scores.enemy++; resetPuck('enemy');
                 } else {
                     puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
                 }
             }
 
-            // Collisions avec le trait libre (activePath)
-            if (activePath && activePath.length > 1) {
+            // Collisions avec les traits
+            for (let i = drawnPaths.length - 1; i >= 0; i--) {
+                let pathInfo = drawnPaths[i];
+                let path = pathInfo.path;
                 let collisionDetected = false;
                 
-                // On vérifie chaque segment du tracé
-                for (let i = 0; i < activePath.length - 1; i++) {
-                    let p1 = activePath[i];
-                    let p2 = activePath[i + 1];
-
+                for (let j = 0; j < path.length - 1; j++) {
+                    let p1 = path[j]; let p2 = path[j + 1];
                     let abx = p2.x - p1.x; let aby = p2.y - p1.y;
                     let apx = puck.x - p1.x; let apy = puck.y - p1.y;
 
@@ -258,30 +280,26 @@
                         let dot = puck.vx * nx + puck.vy * ny;
                         
                         if (dot < 0) {
-                            puck.vx -= 2 * dot * nx;
-                            puck.vy -= 2 * dot * ny;
+                            puck.vx -= 2 * dot * nx; puck.vy -= 2 * dot * ny;
 
-                            // Vérification de la zone où le rebond a lieu
                             if (p1.y < canvas.height / 2) {
-                                puck.vx *= 0.85; puck.vy *= 0.85; // Malus zone adverse
+                                puck.vx *= 0.85; puck.vy *= 0.85; 
                             } else {
-                                puck.vx *= 1.3; puck.vy *= 1.3; // Boost notre zone
+                                puck.vx *= 1.3; puck.vy *= 1.3; 
                             }
-
                             collisionDetected = true;
-                            break; // On arrête la boucle pour ne rebondir qu'une fois
+                            break; 
                         }
                     }
                 }
-
-                // Si le palet touche le trait, le trait disparaît
+                // Si le palet touche le trait, le trait est détruit
                 if (collisionDetected) {
-                    activePath = null;
+                    drawnPaths.splice(i, 1);
                 }
             }
 
             // UI Cooldown
-            let timePassed = Date.now() - lastDrawTime;
+            let timePassed = now - lastDrawTime;
             if (timePassed < COOLDOWN_TIME) {
                 cooldownFill.style.width = (timePassed / COOLDOWN_TIME) * 100 + '%';
                 cooldownFill.classList.remove('ready');
@@ -293,10 +311,10 @@
             }
         }
 
-        function drawNeoPath(path, innerColor) {
+        function drawNeoPath(path, innerColor, alpha = 1.0) {
             if (!path || path.length < 2) return;
+            ctx.globalAlpha = alpha;
             
-            // Contour noir
             ctx.beginPath();
             ctx.moveTo(path[0].x, path[0].y);
             for(let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
@@ -306,7 +324,6 @@
             ctx.lineCap = "round";
             ctx.stroke();
 
-            // Intérieur coloré
             ctx.beginPath();
             ctx.moveTo(path[0].x, path[0].y);
             for(let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
@@ -315,52 +332,70 @@
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
             ctx.stroke();
+            
+            ctx.globalAlpha = 1.0;
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Dessin des Cages (Buts)
-            ctx.fillStyle = "var(--goal-color)";
-            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 15); // But ennemi
-            ctx.fillRect(goalX1, canvas.height - 15, GOAL_WIDTH, 15); // Notre but
+            // --- DESSIN DES SCORES ---
+            // On les dessine en arrière plan mais très visibles (Bordure blanche épaisse + Remplissage noir)
+            ctx.font = "bold 140px Fredoka";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = "#ffffff";
             
-            // Ligne médiane
+            // Score Ennemi
+            ctx.strokeText(scores.enemy, canvas.width / 2, canvas.height * 0.25);
+            ctx.fillStyle = "#151515";
+            ctx.fillText(scores.enemy, canvas.width / 2, canvas.height * 0.25);
+            
+            // Score Joueur
+            ctx.strokeText(scores.player, canvas.width / 2, canvas.height * 0.75);
+            ctx.fillStyle = "#151515";
+            ctx.fillText(scores.player, canvas.width / 2, canvas.height * 0.75);
+            ctx.textBaseline = "alphabetic"; // reset
+
+            // --- LIGNE MÉDIANE ---
             ctx.setLineDash([15, 15]);
             ctx.beginPath();
             ctx.moveTo(0, canvas.height / 2);
             ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.strokeStyle = "#151515";
-            ctx.lineWidth = 4;
+            ctx.strokeStyle = "rgba(21, 21, 21, 0.4)";
+            ctx.lineWidth = 6;
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Affichage des Scores au centre
-            ctx.fillStyle = "rgba(21, 21, 21, 0.08)";
-            ctx.font = "bold 100px Fredoka";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(scores.enemy, canvas.width / 2, canvas.height / 4);
-            ctx.fillText(scores.player, canvas.width / 2, canvas.height * 0.75);
-            ctx.textBaseline = "alphabetic";
+            // --- CAGES (BUTS) NÉOBRUTALISTES ---
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "#151515";
 
-            // Dessin du trait validé
-            if (activePath) {
-                let isTopZone = activePath[0].y < canvas.height / 2;
+            // But ennemi (En Haut - Violet)
+            ctx.fillStyle = "var(--enemy-color)";
+            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 20);
+            ctx.strokeRect(goalX1, -5, GOAL_WIDTH, 25); // -5 pour cacher la bordure du haut
+
+            // Notre but (En Bas - Vert)
+            ctx.fillStyle = "var(--secondary-color)";
+            ctx.fillRect(goalX1, canvas.height - 20, GOAL_WIDTH, 20);
+            ctx.strokeRect(goalX1, canvas.height - 20, GOAL_WIDTH, 25);
+
+            // --- DESSIN DES TRAITS ---
+            drawnPaths.forEach(p => {
+                let isTopZone = p.path[0].y < canvas.height / 2;
                 let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
-                drawNeoPath(activePath, color);
-            }
+                drawNeoPath(p.path, color);
+            });
 
-            // Dessin du trait en cours (semi-transparent)
             if (currentPath) {
-                ctx.globalAlpha = 0.5;
                 let isTopZone = currentPath[0].y < canvas.height / 2;
                 let color = isTopZone ? "var(--enemy-color)" : "var(--secondary-color)";
-                drawNeoPath(currentPath, color);
-                ctx.globalAlpha = 1.0;
+                drawNeoPath(currentPath, color, 0.5); // Semi-transparent pendant le tracé
             }
 
-            // Dessiner le palet
+            // --- LE PALET ---
             ctx.beginPath();
             ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2);
             ctx.fillStyle = "var(--primary-color)";
