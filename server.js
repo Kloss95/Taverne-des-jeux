@@ -463,14 +463,14 @@ io.on('connection', (socket) => {
 	// ------------------------------------------
     // ÉVÉNEMENTS : DRAW HOCKEY
     // ------------------------------------------
+    let hockeyRooms = {};
+
     socket.on('hockey_createRoom', (username) => {
         const roomCode = generateRoomCode();
         hockeyRooms[roomCode] = {
             id: roomCode,
-            players: [{ id: socket.id, name: username || 'Joueur 1' }],
-            lines: [],
-            // Le serveur devra idéalement calculer la physique pour éviter la triche, 
-            // mais on commence par synchroniser les traits.
+            players: [{ id: socket.id, name: username || 'Joueur 1', replayReady: false }],
+            hostId: socket.id
         };
         socket.join(roomCode);
         socket.emit('hockey_roomCreated', roomCode);
@@ -481,20 +481,67 @@ io.on('connection', (socket) => {
         const roomCode = code.toUpperCase();
         const room = hockeyRooms[roomCode];
 
-        if (!room) return socket.emit('hockey_roomError', "Ce code n'existe pas.");
-        if (room.players.length >= 2) return socket.emit('hockey_roomError', "Le salon est plein.");
+        if (!room) return socket.emit('hockey_error', "Ce code n'existe pas.");
+        if (room.players.length >= 2) return socket.emit('hockey_error', "Le salon est plein.");
 
-        room.players.push({ id: socket.id, name: username || 'Joueur 2' });
+        room.players.push({ id: socket.id, name: username || 'Joueur 2', replayReady: false });
         socket.join(roomCode);
 
-        io.to(roomCode).emit('hockey_gameStart', { players: room.players });
+        // Les deux joueurs sont là, on lance le compte à rebours
+        io.to(roomCode).emit('hockey_startCountdown', {
+            hostId: room.hostId,
+            roomCode: roomCode
+        });
+
+        setTimeout(() => {
+            io.to(roomCode).emit('hockey_gameStart');
+        }, 3000);
     });
 
-    socket.on('hockey_drawLine', (data) => {
-        // Renvoie la ligne dessinée par un joueur à l'autre joueur du salon
-        const { roomCode, line } = data;
-        socket.to(roomCode).emit('hockey_newLine', line);
+    // Relais de la physique (De l'Hôte vers le Client)
+    socket.on('hockey_syncPuck', (data) => {
+        socket.to(data.roomCode).emit('hockey_updatePuck', data.puck);
     });
+
+    // Relais des traits dessinés (Bidirectionnel)
+    socket.on('hockey_drawLine', (data) => {
+        socket.to(data.roomCode).emit('hockey_newLine', data.pathInfo);
+    });
+
+    // Gestion des buts et de la victoire
+    socket.on('hockey_goalScored', (data) => {
+        const { roomCode, scores } = data;
+        io.to(roomCode).emit('hockey_updateScore', scores);
+
+        // Premier à 7 gagne
+        if (scores.host >= 7 || scores.client >= 7) {
+            const winner = scores.host >= 7 ? 'host' : 'client';
+            io.to(roomCode).emit('hockey_gameOver', winner);
+        }
+    });
+
+    // Système pour rejouer
+    socket.on('hockey_playAgain', (roomCode) => {
+        const room = hockeyRooms[roomCode];
+        if (!room) return;
+        
+        const player = room.players.find(p => p.id === socket.id);
+        if (player) player.replayReady = true;
+
+        // Si les deux sont prêts, on relance !
+        if (room.players.every(p => p.replayReady)) {
+            room.players.forEach(p => p.replayReady = false);
+            io.to(roomCode).emit('hockey_startCountdown', {
+                hostId: room.hostId,
+                roomCode: roomCode
+            });
+            setTimeout(() => {
+                io.to(roomCode).emit('hockey_gameStart');
+            }, 3000);
+        }
+    });
+
+    
 
     // ------------------------------------------
     // DÉCONNEXION (Gère les deux jeux)
@@ -522,12 +569,16 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('drapeaux_playerDisconnected');
             delete drapeauxRooms[roomId]; 
         }
-		const hockeyEntry = Object.entries(hockeyRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
+		// --- (N'oublie pas d'ajouter la déconnexion si ce n'est pas fait) ---
+   
+        // Nettoyage basique si un joueur quitte
+        const hockeyEntry = Object.entries(hockeyRooms).find(([_, r]) => r.players.some(p => p.id === socket.id));
         if (hockeyEntry) {
             const [roomId, room] = hockeyEntry;
             io.to(roomId).emit('hockey_playerDisconnected');
             delete hockeyRooms[roomId]; 
         }
+    });
     });
 });
 
