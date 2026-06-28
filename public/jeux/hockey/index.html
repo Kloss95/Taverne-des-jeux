@@ -12,7 +12,7 @@
             --canvas-bg: #e2e8f0; 
             --primary-color: #ff5e5e;
             --secondary-color: #4ade80; 
-            --warning-color: #F0C300; /* Nouveau jaune plus foncé */
+            --warning-color: #F0C300; 
             --enemy-color: #a78bfa;   
         }
 
@@ -51,7 +51,6 @@
             font-weight: 700;
         }
 
-        /* Disposition en 3 colonnes */
         .game-container {
             display: flex;
             flex-direction: row;
@@ -60,7 +59,6 @@
             gap: 40px;
         }
 
-        /* Largeur fixe pour équilibrer les côtés et centrer parfaitement le terrain */
         .side-panel {
             display: flex;
             flex-direction: column;
@@ -74,7 +72,6 @@
             display: block;
         }
 
-        /* Jauge Verticale */
         .cooldown-wrapper {
             width: 40px;
             height: 350px;
@@ -98,7 +95,6 @@
             background-color: var(--secondary-color);
         }
 
-        /* Bouton de statut avec largeur fixe pour éviter les sauts d'affichage */
         .cooldown-status {
             width: 120px;
             padding: 10px 0;
@@ -110,10 +106,9 @@
             transition: background-color 0.2s;
         }
 
-        /* Panneau des scores */
         .score-box {
             background-color: #ffffff;
-            width: 120px; /* Même largeur que le bouton de jauge */
+            width: 120px; 
             padding: 15px;
             text-align: center;
             display: flex;
@@ -188,10 +183,15 @@
         // Constantes
         const COOLDOWN_TIME = 1000; 
         const LIFESPAN = 1000; 
-        const TARGET_SPEED = 9; 
-        const GOAL_WIDTH = 130; 
+        
+        // Nouvelle gestion des vitesses
+        const MIN_SPEED = 9;   // La balle ne descendra jamais en dessous de ça en jouant
+        const BOOST_SPEED = 14; // Vitesse de propultion si touché dans notre zone
+        const MAX_SPEED = 22;  // Limite anti-bug de collision
 
-        // Couleurs exactes pour le Canvas
+        const GOAL_WIDTH = 140; 
+        const GOAL_DEPTH = 30; // Profondeur visuelle des cages
+
         const COLOR_ENEMY = "#a78bfa";
         const COLOR_PLAYER = "#4ade80";
         const COLOR_PUCK = "#ff5e5e";
@@ -259,10 +259,10 @@
         }, { passive: false });
         window.addEventListener('touchend', endDraw);
 
-
-        function normalizeSpeed(vx, vy) {
+        function normalizeSpeedWall(vx, vy) {
             let speed = Math.hypot(vx, vy);
-            let newSpeed = (speed * 0.4) + (TARGET_SPEED * 0.6);
+            // Rebond sur un mur : on calme le jeu si c'était trop rapide, mais JAMAIS en dessous de MIN_SPEED
+            let newSpeed = Math.max(MIN_SPEED, speed * 0.9);
             let ratio = newSpeed / speed;
             return { vx: vx * ratio, vy: vy * ratio };
         }
@@ -292,15 +292,15 @@
             puck.y += puck.vy;
 
             // Murs latéraux
-            if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
-            if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+            if (puck.x - puck.radius < 0) { puck.x = puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
+            if (puck.x + puck.radius > canvas.width) { puck.x = canvas.width - puck.radius; puck.vx *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy; }
             
             // Mur Haut (Cage ennemi)
             if (puck.y - puck.radius < 0) { 
                 if (puck.x > goalX1 && puck.x < goalX2) {
                     scores.player++; resetPuck('player');
                 } else {
-                    puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
+                    puck.y = puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
                 }
             }
 
@@ -309,11 +309,11 @@
                 if (puck.x > goalX1 && puck.x < goalX2) {
                     scores.enemy++; resetPuck('enemy');
                 } else {
-                    puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeed(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
+                    puck.y = canvas.height - puck.radius; puck.vy *= -1; let ns = normalizeSpeedWall(puck.vx, puck.vy); puck.vx = ns.vx; puck.vy = ns.vy;
                 }
             }
 
-            // Collisions
+            // Collisions avec les traits
             for (let i = drawnPaths.length - 1; i >= 0; i--) {
                 let pathInfo = drawnPaths[i];
                 let path = pathInfo.path;
@@ -337,11 +337,25 @@
                         if (dot < 0) {
                             puck.vx -= 2 * dot * nx; puck.vy -= 2 * dot * ny;
 
+                            let currentSpeed = Math.hypot(puck.vx, puck.vy);
+                            let newSpeed;
+
                             if (p1.y < canvas.height / 2) {
-                                puck.vx *= 0.85; puck.vy *= 0.85; 
+                                // Zone adverse : On maintient au moins la vitesse minimale (MIN_SPEED)
+                                // Pas de "ralentissement" radical, juste l'absence de boost
+                                newSpeed = Math.max(MIN_SPEED, currentSpeed * 0.95); 
                             } else {
-                                puck.vx *= 1.3; puck.vy *= 1.3; 
+                                // Notre zone : Gros boost immédiat !
+                                newSpeed = Math.max(BOOST_SPEED, currentSpeed * 1.25); 
                             }
+                            
+                            // Plafond de sécurité pour éviter les bugs
+                            newSpeed = Math.min(newSpeed, MAX_SPEED); 
+
+                            let ratio = newSpeed / currentSpeed;
+                            puck.vx *= ratio;
+                            puck.vy *= ratio;
+                            
                             collisionDetected = true;
                             break; 
                         }
@@ -357,16 +371,51 @@
             if (timePassed < COOLDOWN_TIME) {
                 cooldownFill.style.height = (timePassed / COOLDOWN_TIME) * 100 + '%';
                 cooldownFill.classList.remove('ready');
-                
                 cooldownStatus.innerText = "RECHARGE";
                 cooldownStatus.style.backgroundColor = "var(--warning-color)";
             } else {
                 cooldownFill.style.height = '100%';
                 cooldownFill.classList.add('ready');
-                
                 cooldownStatus.innerText = "PRÊT";
                 cooldownStatus.style.backgroundColor = "var(--secondary-color)";
             }
+        }
+
+        // Fonction stylisée pour dessiner les cages en fausse 3D
+        function drawGoal(x, y, width, height, color, isTop) {
+            // Fond noir (profondeur)
+            ctx.fillStyle = "#151515";
+            ctx.fillRect(x, y, width, height);
+
+            // Plancher coloré (légèrement décalé pour l'effet de profondeur)
+            let offset = 6;
+            let innerY = isTop ? y : y + offset;
+            ctx.fillStyle = color;
+            ctx.fillRect(x + offset, innerY, width - offset * 2, height - offset);
+
+            // Grille de fond typique du néobrutalisme (hachures)
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#151515";
+            ctx.beginPath();
+            for (let i = x + 12; i < x + width; i += 15) {
+                ctx.moveTo(i, y);
+                // Inclinaison de la ligne pour l'effet filet
+                ctx.lineTo(i - (isTop ? 12 : -12), y + height);
+            }
+            ctx.stroke();
+
+            // Bordure extérieure épaisse en U
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "#151515";
+            ctx.beginPath();
+            if (isTop) {
+                ctx.moveTo(x, y); ctx.lineTo(x, y + height);
+                ctx.lineTo(x + width, y + height); ctx.lineTo(x + width, y);
+            } else {
+                ctx.moveTo(x, y + height); ctx.lineTo(x, y);
+                ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + height);
+            }
+            ctx.stroke();
         }
 
         function drawNeoPath(path, innerColor, alpha = 1.0) {
@@ -397,39 +446,31 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // LISERÉ INTÉRIEUR (Pour un rendu "Plateau de jeu" moins plat)
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "rgba(21, 21, 21, 0.06)";
+            ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+            // CERCLE CENTRAL
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 60, 0, Math.PI * 2);
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "rgba(21, 21, 21, 0.15)";
+            ctx.stroke();
+
             // LIGNE MÉDIANE
             ctx.setLineDash([15, 15]);
             ctx.beginPath();
             ctx.moveTo(0, canvas.height / 2);
             ctx.lineTo(canvas.width, canvas.height / 2);
-            ctx.strokeStyle = "rgba(21, 21, 21, 0.2)";
+            ctx.strokeStyle = "rgba(21, 21, 21, 0.25)";
             ctx.lineWidth = 6;
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // But Ennemi (En Haut - Violet)
-            ctx.fillStyle = COLOR_ENEMY;
-            ctx.fillRect(goalX1, 0, GOAL_WIDTH, 20); 
-            ctx.beginPath();
-            ctx.moveTo(goalX1, 0); 
-            ctx.lineTo(goalX1, 20); 
-            ctx.lineTo(goalX2, 20); 
-            ctx.lineTo(goalX2, 0); 
-            ctx.lineWidth = 6;
-            ctx.strokeStyle = "#151515";
-            ctx.stroke(); 
-
-            // Notre but (En Bas - Vert)
-            ctx.fillStyle = COLOR_PLAYER;
-            ctx.fillRect(goalX1, canvas.height - 20, GOAL_WIDTH, 20);
-            ctx.beginPath();
-            ctx.moveTo(goalX1, canvas.height); 
-            ctx.lineTo(goalX1, canvas.height - 20); 
-            ctx.lineTo(goalX2, canvas.height - 20); 
-            ctx.lineTo(goalX2, canvas.height); 
-            ctx.lineWidth = 6;
-            ctx.strokeStyle = "#151515";
-            ctx.stroke();
+            // CAGES AVEC EFFET DE PROFONDEUR
+            drawGoal(goalX1, 0, GOAL_WIDTH, GOAL_DEPTH, COLOR_ENEMY, true);
+            drawGoal(goalX1, canvas.height - GOAL_DEPTH, GOAL_WIDTH, GOAL_DEPTH, COLOR_PLAYER, false);
 
             // DESSIN DES TRAITS
             drawnPaths.forEach(p => {
@@ -444,7 +485,7 @@
                 drawNeoPath(currentPath, color, 0.5); 
             }
 
-            // LE PALET
+            // LE PALET (Avec détail intérieur)
             ctx.beginPath();
             ctx.arc(puck.x, puck.y, puck.radius, 0, Math.PI * 2);
             ctx.fillStyle = COLOR_PUCK;
@@ -452,6 +493,12 @@
             ctx.lineWidth = 4;
             ctx.strokeStyle = "#151515";
             ctx.stroke();
+            
+            // Cercle central du palet pour lui donner du relief
+            ctx.beginPath();
+            ctx.arc(puck.x, puck.y, puck.radius * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = "#151515";
+            ctx.fill();
             ctx.closePath();
         }
 
